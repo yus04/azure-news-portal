@@ -1,0 +1,68 @@
+<article class="featured-card">
+  <div class="featured-card__media">
+    {% if article.hero_image %}
+    <img
+      src="{{ article.hero_image.src }}"
+      alt="{{ article.hero_image.alt }}"
+      {% if article.hero_image.width %}width="{{ article.hero_image.width }}"{% endif %}
+      {% if article.hero_image.height %}height="{{ article.hero_image.height }}"{% endif %}
+      loading="eager"
+      decoding="async"
+    />
+    {% else %}
+    <div class="media-fallback media-fallback--large" role="img" aria-label="画像なし">
+      <span>{{ article.source }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="featured-card__body">
+    <div class="meta-row">
+      <span class="badge badge--latest">最新</span>
+      {% if article.importance_label %}
+      <span class="badge badge--importance badge--{{ article.importance }}">{{ article.importance_label }}</span>
+      {% endif %}
+      {% if article.update_type_label %}
+      <span class="badge badge--type">{{ article.update_type_label }}</span>
+      {% endif %}
+    </div>
+
+    <h3 class="featured-card__title">
+      <a href="/articles/{{ article.id }}" data-article-id="{{ article.id }}" class="article-link">
+        {{ article.display_title }}
+      </a>
+    </h3>
+
+    {% if article.summary_ja %}
+    <p class="featured-card__summary">{{ article.summary_ja }}</p>
+    {% endif %}
+
+    <div class="meta-row meta-row--muted">
+      <span class="meta-source">{{ article.source }}</span>
+      <time datetime="{{ article.published_at }}">{{ article.published_display }}</time>
+    </div>
+
+    {% if article.products %}
+    <ul class="tag-list" aria-label="関連する Azure 製品">
+      {% for product in article.products[:5] %}
+      <li><a class="tag" href="/?product={{ product | urlencode }}">{{ product }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="featured-card__actions">
+      <a class="btn btn--primary" href="/articles/{{ article.id }}" data-article-id="{{ article.id }}">
+        日本語の要約を読む
+      </a>
+      <a
+        class="btn btn--ghost external-link"
+        href="{{ article.original_url }}"
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+      >
+        元記事を開く<span class="external-link__icon" aria-hidden="true">↗</span>
+        <span class="visually-hidden">(外部サイト、新しいタブで開きます)</span>
+      </a>
+    </div>
+  </div>
+</article>

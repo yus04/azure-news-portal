@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "azure-news-portal"
+version = "1.0.0"
+description = "Azure の最新記事を日本語で要約・分類して閲覧できるポータルと記事処理パイプライン"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["functions/tests", "portal/tests"]
+pythonpath = ["shared", "functions", "functions/src", "portal"]
+addopts = "-q --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["integration: 外部サービスをモックした統合テスト", "ui: UI レンダリングのテスト"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".pydeps", ".pydeps-portal", ".pydeps-dev", ".dist", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008", "UP017", "UP038"]

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Azure News Portal — Azure の最新情報を日本語で{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="shell">
+    <p class="hero__eyebrow">Azure News Portal</p>
+    <h1 class="hero__title">Azure の最新情報を、<br />日本語の要約でまとめて追う。</h1>
+    <p class="hero__lead">
+      公式ブログやアップデート情報を自動で取り込み、日本語の要約・要点・製品タグを付けて整理しています。
+    </p>
+  </div>
+</section>
+
+{% include "partials/filters.html" %}
+
+<div class="shell" id="results-shell">
+  {% if is_filtered %}
+  <div class="results-header">
+    <h2 class="results-header__title">検索結果</h2>
+    {% if total_estimate is not none %}
+    <p class="results-header__count">{{ total_estimate }} 件</p>
+    {% endif %}
+    <a class="btn btn--ghost" href="/">検索条件を解除</a>
+  </div>
+  {% endif %}
+
+  {% if featured %}
+  <section class="featured" aria-labelledby="featured-heading">
+    <h2 class="section-heading" id="featured-heading">最新のトピック</h2>
+    {% with article = featured %}
+      {% include "partials/featured_card.html" %}
+    {% endwith %}
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="list-heading">
+    <h2 class="section-heading" id="list-heading">{% if is_filtered %}該当記事{% else %}新着記事{% endif %}</h2>
+    <div class="card-grid" id="article-grid">
+      {% for article in articles %}
+        {% include "partials/article_card.html" %}
+      {% else %}
+        {% if not featured %}
+        <p class="empty-state">
+          条件に一致する記事が見つかりませんでした。検索条件を変更するか、
+          <a href="/">条件を解除</a>してください。
+        </p>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="load-more" id="load-more-wrapper">
+      {% if next_cursor %}
+      <button
+        type="button"
+        class="btn btn--primary"
+        id="load-more"
+        data-next-cursor="{{ next_cursor }}"
+        data-base-query="{{ build_query_string(params) }}"
+      >
+        さらに読み込む
+      </button>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

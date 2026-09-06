@@ -1,0 +1,9 @@
+# 開発・テスト用の依存関係
+-r functions/requirements.txt
+-r portal/requirements.txt
+
+pytest==8.3.4
+pytest-cov==6.0.0
+httpx==0.27.2
+respx==0.22.0
+ruff==0.9.4

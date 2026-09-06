@@ -1,0 +1,9 @@
+{% for article in articles %}
+  {% include "partials/article_card.html" %}
+{% endfor %}
+{% if not articles %}
+<p class="empty-state" data-empty="true">
+  条件に一致する記事が見つかりませんでした。<a href="/">検索条件を解除</a>してください。
+</p>
+{% endif %}
+<div class="load-more-marker" data-next-cursor="{{ next_cursor or '' }}" hidden></div>

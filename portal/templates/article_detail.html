@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ article.display_title }} — Azure News Portal{% endblock %}
+
+{% block content %}
+<div class="shell shell--narrow detail-shell">
+  <nav class="breadcrumb" aria-label="パンくずリスト">
+    <a href="/">記事一覧</a>
+    <span aria-hidden="true">/</span>
+    <span>記事詳細</span>
+  </nav>
+
+  {% include "partials/article_detail_body.html" %}
+</div>
+{% endblock %}

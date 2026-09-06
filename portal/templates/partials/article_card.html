@@ -1,0 +1,60 @@
+<article class="card{% if article.importance_rank >= 4 %} card--wide{% endif %}" data-importance="{{ article.importance or 'medium' }}">
+  <a class="card__link" href="/articles/{{ article.id }}" data-article-id="{{ article.id }}">
+    <div class="card__media">
+      {% if article.hero_image %}
+      <img
+        src="{{ article.hero_image.src }}"
+        alt="{{ article.hero_image.alt }}"
+        loading="lazy"
+        decoding="async"
+      />
+      {% else %}
+      <div class="media-fallback" role="img" aria-label="画像なし">
+        <span>{{ article.source }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card__body">
+      <div class="meta-row">
+        {% if article.importance_label %}
+        <span class="badge badge--importance badge--{{ article.importance }}">{{ article.importance_label }}</span>
+        {% endif %}
+        {% if article.category %}
+        <span class="badge badge--type">{{ article.category }}</span>
+        {% endif %}
+      </div>
+
+      <h3 class="card__title">{{ article.display_title }}</h3>
+
+      {% if article.summary_ja %}
+      <p class="card__summary">{{ article.summary_ja }}</p>
+      {% endif %}
+
+      <div class="meta-row meta-row--muted">
+        <span class="meta-source">{{ article.source }}</span>
+        <time datetime="{{ article.published_at }}">{{ article.published_display }}</time>
+      </div>
+
+      {% if article.products %}
+      <ul class="tag-list" aria-label="関連する Azure 製品">
+        {% for product in article.products[:3] %}
+        <li><span class="tag">{{ product }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </a>
+
+  <div class="card__footer">
+    <a
+      class="external-link"
+      href="{{ article.original_url }}"
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+    >
+      元記事を開く<span class="external-link__icon" aria-hidden="true">↗</span>
+      <span class="visually-hidden">(外部サイト、新しいタブで開きます)</span>
+    </a>
+  </div>
+</article>

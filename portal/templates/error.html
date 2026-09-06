@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}エラー {{ status_code }} — Azure News Portal{% endblock %}
+
+{% block content %}
+<div class="shell shell--narrow error-page">
+  <p class="error-page__code">{{ status_code }}</p>
+  <h1 class="error-page__title">
+    {% if status_code == 404 %}ページが見つかりません
+    {% elif status_code == 503 %}一時的に利用できません
+    {% else %}エラーが発生しました{% endif %}
+  </h1>
+  <p class="error-page__detail">{{ detail }}</p>
+  <a class="btn btn--primary" href="/">記事一覧へ戻る</a>
+</div>
+{% endblock %}

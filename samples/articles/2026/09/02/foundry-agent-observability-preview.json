@@ -1,0 +1,14 @@
+{
+  "entry": {
+    "guid": "microsoft-foundry-agent-observability-preview",
+    "name": "Public Preview: Agent observability in Microsoft Foundry",
+    "url": "https://devblogs.microsoft.com/foundry/agent-observability-public-preview/",
+    "siteName": "Microsoft Foundry Blog",
+    "dc:creator": "Foundry Engineering",
+    "isoDate": "2026-09-02T15:20:00+00:00",
+    "section": "AI",
+    "contentSnippet": "Agent observability in Microsoft Foundry is now in public preview, adding traces, evaluations, and token-level cost analysis to agent workloads.",
+    "content:encoded": "Microsoft Foundry now offers agent observability in public preview. Teams can capture end-to-end traces of agent runs, correlate tool calls with model invocations, and review token usage per step. Continuous evaluation can be attached to production traffic so that regressions in groundedness or relevance are detected automatically. The feature integrates with Azure Monitor and exports OpenTelemetry spans.",
+    "ogImage": "https://devblogs.microsoft.com/foundry/wp-content/uploads/agent-trace-dashboard.png"
+  }
+}

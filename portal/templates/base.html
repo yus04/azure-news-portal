@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Azure News Portal{% endblock %}</title>
+    <meta name="description" content="Azure の最新情報を日本語で要約・分類して閲覧できるポータル" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="/static/css/site.css" />
+    <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">本文へスキップ</a>
+
+    <header class="site-header">
+      <div class="shell site-header__inner">
+        <a class="brand" href="/">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__text">
+            <strong>Azure News</strong>
+            <span>Portal</span>
+          </span>
+        </a>
+        <div class="site-header__actions">
+          <span class="site-header__note" aria-hidden="true">Azure の最新情報を日本語で</span>
+          <button
+            type="button"
+            class="theme-toggle"
+            id="theme-toggle"
+            aria-label="配色テーマを切り替える"
+            aria-pressed="false"
+          >
+            <span class="theme-toggle__icon" aria-hidden="true"></span>
+            <span class="theme-toggle__label">テーマ</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell">
+        <p>Azure News Portal — 記事の要約は生成 AI により作成されています。正確な内容は必ず元記事を確認してください。</p>
+      </div>
+    </footer>
+
+    <div class="modal" id="article-modal" hidden>
+      <div class="modal__backdrop" data-modal-close></div>
+      <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="article-modal-title">
+        <button type="button" class="modal__close" data-modal-close aria-label="閉じる">×</button>
+        <div class="modal__body" id="article-modal-body"></div>
+      </div>
+    </div>
+
+    <script src="/static/js/app.js" defer></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

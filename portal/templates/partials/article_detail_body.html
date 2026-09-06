@@ -1,0 +1,113 @@
+<div class="article-detail">
+  <div class="meta-row">
+    {% if article.importance_label %}
+    <span class="badge badge--importance badge--{{ article.importance }}">{{ article.importance_label }}</span>
+    {% endif %}
+    {% if article.update_type_label %}
+    <span class="badge badge--type">{{ article.update_type_label }}</span>
+    {% endif %}
+    {% if article.category and article.category != article.update_type_label %}
+    <span class="badge badge--type">{{ article.category }}</span>
+    {% endif %}
+  </div>
+
+  <h1 class="article-detail__title" id="article-modal-title">{{ article.display_title }}</h1>
+
+  {% if article.title_ja and article.title_ja != article.title %}
+  <p class="article-detail__original-title" lang="en">原題: {{ article.title }}</p>
+  {% endif %}
+
+  <div class="meta-row meta-row--muted article-detail__meta">
+    <span class="meta-source">{{ article.source }}</span>
+    <time datetime="{{ article.published_at }}">{{ article.published_display }}</time>
+    {% if article.author %}<span>{{ article.author }}</span>{% endif %}
+  </div>
+
+  {% if article.summary_ja %}
+  <section class="article-detail__section">
+    <h2>要約</h2>
+    <p class="article-detail__summary">{{ article.summary_ja }}</p>
+  </section>
+  {% endif %}
+
+  {% if article.key_points_ja %}
+  <section class="article-detail__section">
+    <h2>主な要点</h2>
+    <ul class="key-points">
+      {% for point in article.key_points_ja %}
+      <li>{{ point }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if article.images %}
+  <section class="article-detail__section">
+    <h2>記事内の主要な画像</h2>
+    <div class="figure-grid">
+      {% for image in article.images %}
+      <figure class="figure">
+        <img src="{{ image.src }}" alt="{{ image.alt }}" loading="lazy" decoding="async" />
+        {% if image.caption %}<figcaption>{{ image.caption }}</figcaption>{% endif %}
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if article.importance_reason_ja %}
+  <section class="article-detail__section">
+    <h2>重要度の理由</h2>
+    <p>{{ article.importance_reason_ja }}</p>
+  </section>
+  {% endif %}
+
+  {% if article.target_audience %}
+  <section class="article-detail__section">
+    <h2>対象読者</h2>
+    <ul class="tag-list">
+      {% for audience in article.target_audience %}
+      <li><span class="tag">{{ audience }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if article.products %}
+  <section class="article-detail__section">
+    <h2>Azure 製品</h2>
+    <ul class="tag-list">
+      {% for product in article.products %}
+      <li><a class="tag" href="/?product={{ product | urlencode }}">{{ product }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if article.terms %}
+  <section class="article-detail__section">
+    <h2>重要用語</h2>
+    <ul class="tag-list">
+      {% for term in article.terms %}
+      <li><a class="tag" href="/?tag={{ term | urlencode }}">{{ term }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="article-detail__actions">
+    <a
+      class="btn btn--primary external-link"
+      href="{{ article.original_url }}"
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+    >
+      元記事を開く<span class="external-link__icon" aria-hidden="true">↗</span>
+      <span class="visually-hidden">(外部サイト、新しいタブで開きます)</span>
+    </a>
+  </div>
+
+  <p class="article-detail__disclaimer">
+    この要約は生成 AI により作成されています。正確な内容は元記事を確認してください。
+  </p>
+</div>

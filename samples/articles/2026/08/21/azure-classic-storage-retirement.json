@@ -1,0 +1,15 @@
+{
+  "articleId": "azure-classic-storage-retirement-notice",
+  "headline": "Action required: Azure classic storage accounts retire on 30 September 2027",
+  "canonicalUrl": "https://azure.microsoft.com/en-us/updates/action-required-classic-storage-accounts-retirement/?utm_source=feed&utm_medium=rss",
+  "feedName": "Azure Updates",
+  "datePublished": "Fri, 21 Aug 2026 02:30:00 GMT",
+  "fetchedAt": "2026-08-21T02:45:10Z",
+  "topics": ["Storage", "Retirement"],
+  "description": "Classic storage accounts will be retired. Migrate to Azure Resource Manager storage accounts before the retirement date to avoid service interruption.",
+  "articleBody": "Azure classic storage accounts will be retired on 30 September 2027. After this date, classic storage accounts will no longer be supported and data access may be interrupted. Customers must migrate to Azure Resource Manager (ARM) storage accounts. Microsoft provides an in-place migration tool that keeps the account name and data intact. Review the migration guidance, validate applications against ARM endpoints, and complete the migration well before the deadline.",
+  "media": [
+    { "url": "https://azure.microsoft.com/updates-assets/classic-storage-migration-flow.png" },
+    { "url": "https://azure.microsoft.com/assets/icons/logo-1x1.png" }
+  ]
+}

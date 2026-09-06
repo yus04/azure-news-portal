@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pydeps/
+.pydeps-portal/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ビルド成果物
+.dist/
+*.zip
+
+# Bicep / Azure
+*.bicep.json
+.azure/
+azure-outputs.json
+.deploy-outputs.env
+
+# 秘密情報 (絶対にコミットしない)
+.env
+.env.*
+local.settings.json
+*.pfx
+*.pem
+
+# エディター / OS
+.DS_Store
+.idea/
+.vscode/

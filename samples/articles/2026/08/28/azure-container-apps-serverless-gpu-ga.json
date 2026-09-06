@@ -1,0 +1,15 @@
+{
+  "id": "azure-container-apps-serverless-gpu-ga",
+  "title": "Generally Available: Serverless GPUs in Azure Container Apps",
+  "link": "https://azure.microsoft.com/en-us/updates/generally-available-serverless-gpus-in-azure-container-apps/",
+  "source": "Azure Updates",
+  "author": "Azure Container Apps Team",
+  "pubDate": "2026-08-28T09:00:00Z",
+  "ingestedAt": "2026-08-28T09:12:31Z",
+  "category": "Compute",
+  "summary": "Serverless GPUs in Azure Container Apps are now generally available, enabling scale-to-zero GPU workloads with per-second billing for inference and batch scenarios.",
+  "content": "<p>Azure Container Apps now supports serverless GPUs in general availability. Workloads can scale to zero when idle and scale out automatically when requests arrive. NVIDIA A100 and T4 profiles are available in selected regions. Billing is per second of GPU usage.</p><p>Common scenarios include real-time inference for small and medium models, batch scoring, and image processing pipelines. Existing Container Apps environments can enable a GPU workload profile without redeploying the environment.</p>",
+  "images": [
+    "https://azure.microsoft.com/updates-assets/serverless-gpu-architecture.png"
+  ]
+}

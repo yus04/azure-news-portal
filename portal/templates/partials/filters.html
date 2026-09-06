@@ -1,0 +1,110 @@
+<section class="filters" aria-label="記事の検索とフィルター">
+  <div class="shell">
+    <form class="filters__form" method="get" action="/" id="filter-form">
+      <div class="filters__search">
+        <label class="visually-hidden" for="search-input">キーワード検索</label>
+        <input
+          type="search"
+          id="search-input"
+          name="q"
+          value="{{ query.q or '' }}"
+          placeholder="キーワード、製品名、用語で検索 (例: Container Apps, 提供終了)"
+          maxlength="200"
+          autocomplete="off"
+        />
+        <button type="submit" class="btn btn--primary">検索</button>
+        {% if query.is_filtered %}
+        <a class="btn btn--ghost" href="/">解除</a>
+        {% endif %}
+      </div>
+
+      <details class="filters__details" {% if query.is_filtered %}open{% endif %}>
+        <summary class="filters__summary">絞り込み条件</summary>
+        <div class="filters__grid">
+          <div class="field">
+            <label for="filter-product">Azure 製品</label>
+            <select id="filter-product" name="product">
+              <option value="">すべて</option>
+              {% for item in facets.products %}
+              <option value="{{ item.value }}" {% if item.value in query.products %}selected{% endif %}>
+                {{ item.value }}{% if item.count %} ({{ item.count }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="filter-category">カテゴリ</label>
+            <select id="filter-category" name="category">
+              <option value="">すべて</option>
+              {% for item in facets.categories %}
+              <option value="{{ item.value }}" {% if item.value in query.categories %}selected{% endif %}>
+                {{ item.value }}{% if item.count %} ({{ item.count }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="filter-tag">タグ・重要用語</label>
+            <select id="filter-tag" name="tag">
+              <option value="">すべて</option>
+              {% for item in facets.tags %}
+              <option value="{{ item.value }}" {% if item.value in query.tags %}selected{% endif %}>
+                {{ item.value }}{% if item.count %} ({{ item.count }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="filter-importance">重要度</label>
+            <select id="filter-importance" name="importance">
+              <option value="">すべて</option>
+              {% for key, label in importance_labels.items() %}
+              <option value="{{ key }}" {% if key in query.importances %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="filter-source">情報源</label>
+            <select id="filter-source" name="source">
+              <option value="">すべて</option>
+              {% for item in facets.sources %}
+              <option value="{{ item.value }}" {% if item.value in query.sources %}selected{% endif %}>
+                {{ item.value }}{% if item.count %} ({{ item.count }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field field--range">
+            <label for="filter-from">公開日</label>
+            <div class="field__row">
+              <input
+                type="date"
+                id="filter-from"
+                name="from"
+                value="{{ query.published_from.isoformat() if query.published_from else '' }}"
+              />
+              <span aria-hidden="true">〜</span>
+              <label class="visually-hidden" for="filter-to">公開日 (終了)</label>
+              <input
+                type="date"
+                id="filter-to"
+                name="to"
+                value="{{ query.published_to.isoformat() if query.published_to else '' }}"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="filters__actions">
+          <button type="submit" class="btn btn--primary">この条件で絞り込む</button>
+          <a class="btn btn--ghost" href="/">条件をすべて解除</a>
+        </div>
+      </details>
+    </form>
+  </div>
+</section>
