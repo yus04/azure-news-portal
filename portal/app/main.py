@@ -25,6 +25,8 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
 logger = logging.getLogger("portal")
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO)
 
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
@@ -154,7 +156,15 @@ def _search(query: ArticleQuery) -> ArticlePage:
     try:
         return get_repository().search(query)
     except Exception as exc:  # noqa: BLE001 - バックエンド障害は 503 で返す
-        logger.exception("article search failed: %s", type(exc).__name__)
+        response_headers = getattr(exc, "headers", {})
+        logger.exception(
+            "article search failed: type=%s status=%s substatus=%s activityId=%s message=%s",
+            type(exc).__name__,
+            getattr(exc, "status_code", None),
+            response_headers.get("x-ms-substatus"),
+            response_headers.get("x-ms-activity-id"),
+            str(exc),
+        )
         raise HTTPException(status_code=503, detail="article store is unavailable") from exc
 
 

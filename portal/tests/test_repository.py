@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import date
+from unittest.mock import MagicMock
 
+from app.config import Settings
 from app.media import is_safe_blob_path
 from app.models import ArticleQuery
-from app.repository import decode_cursor, encode_cursor, to_detail, to_summary
+from app.repository import CosmosArticleRepository, decode_cursor, encode_cursor, to_detail, to_summary
 
 
 class TestCursor:
@@ -110,6 +112,21 @@ class TestInMemoryRepository:
         assert any(item.value == "Azure Container Apps" for item in facets.products)
         assert any(item.value == "Azure Updates" for item in facets.sources)
         assert facets.categories
+
+
+class TestCosmosArticleRepository:
+    def test_search_enables_cross_partition_query(self) -> None:
+        container = MagicMock()
+        container.query_items.return_value.by_page.return_value = iter([[]])
+        database = MagicMock()
+        database.get_container_client.return_value = container
+        client = MagicMock()
+        client.get_database_client.return_value = database
+        repository = CosmosArticleRepository(Settings(), credential=MagicMock(), client=client)
+
+        repository.search(ArticleQuery())
+
+        assert container.query_items.call_args.kwargs["enable_cross_partition_query"] is True
 
 
 class TestMediaPathSafety:
