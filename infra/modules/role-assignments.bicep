@@ -218,11 +218,11 @@ resource portalMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04
 
 resource portalCosmosReader 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = {
   parent: cosmosAccount
-  name: guid(cosmosAccount.id, portalPrincipalId, cosmosDataReaderRoleId)
+  name: guid(cosmosAccount.id, portalPrincipalId, cosmosDataReaderRoleId, cosmosArticlesContainerName)
   properties: {
     roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/${cosmosDataReaderRoleId}'
     principalId: portalPrincipalId
-    scope: '/'
+    scope: '${cosmosAccount.id}/dbs/${cosmosDatabaseName}/colls/${cosmosArticlesContainerName}'
   }
   dependsOn: [
     funcCosmosState
