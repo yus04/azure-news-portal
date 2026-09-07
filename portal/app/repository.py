@@ -187,6 +187,7 @@ class CosmosArticleRepository:
             query=sql,
             parameters=parameters,
             max_item_count=query.page_size,
+            enable_cross_partition_query=True,
         )
         pager = iterator.by_page(decode_cursor(query.cursor))
         try:
@@ -203,12 +204,25 @@ class CosmosArticleRepository:
 
     def count(self, query: ArticleQuery) -> int:
         sql, parameters = build_count_query(query)
-        results = list(self._container.query_items(query=sql, parameters=parameters))
+        results = list(
+            self._container.query_items(
+                query=sql,
+                parameters=parameters,
+                enable_cross_partition_query=True,
+            )
+        )
         return int(results[0]) if results else 0
 
     def get(self, article_id: str) -> ArticleDetail | None:
         sql, parameters = build_document_query(article_id)
-        results = list(self._container.query_items(query=sql, parameters=parameters, max_item_count=1))
+        results = list(
+            self._container.query_items(
+                query=sql,
+                parameters=parameters,
+                max_item_count=1,
+                enable_cross_partition_query=True,
+            )
+        )
         if not results:
             return None
         return to_detail(results[0], self._settings.images_container)
@@ -229,7 +243,10 @@ class CosmosArticleRepository:
         return facets
 
     def _facet(self, sql: str) -> list[FacetValue]:
-        rows: Iterable[dict[str, Any]] = self._container.query_items(query=sql)
+        rows: Iterable[dict[str, Any]] = self._container.query_items(
+            query=sql,
+            enable_cross_partition_query=True,
+        )
         values: list[FacetValue] = []
         for row in rows:
             value = row.get("value")
@@ -240,7 +257,13 @@ class CosmosArticleRepository:
         return values[:60]
 
     def ping(self) -> bool:
-        list(self._container.query_items(query="SELECT VALUE 1", max_item_count=1))
+        list(
+            self._container.query_items(
+                query="SELECT VALUE 1",
+                max_item_count=1,
+                enable_cross_partition_query=True,
+            )
+        )
         return True
 
 

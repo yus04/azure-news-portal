@@ -47,8 +47,8 @@ Azure Container Apps 上の Web ポータルで配信します。
 
 - **完全サーバーレス**: Functions は Flex Consumption、Cosmos DB は Serverless、
   Container Apps は Consumption workload profile でスケールゼロ
-- **キーレス**: すべてのサービス間認証が Managed Identity + Microsoft Entra ID。
-  接続文字列・アカウントキー・API キーはコードにも設定にも存在しません
+- **サービス間はキーレス**: Azure サービス間認証は Managed Identity + Microsoft Entra ID。
+  外部の GitHub Actions から記事を投入する Storage 接続文字列は別途管理します
 - **完全 IaC**: すべての Azure リソースを Bicep で構築。Azure Portal での手動作成は不要
 - **冪等**: 同じ記事を何度処理しても重複レコードは作られません
 - **モデル差し替え可能**: モデル名・デプロイ名・API バージョン・API スタイルをすべて設定で切り替え
@@ -86,7 +86,7 @@ flowchart LR
 |---------|------|---------|
 | Log Analytics Workspace | 監視 | 保持 30 日 |
 | Application Insights | 監視 | ワークスペースベース |
-| Storage Account | StorageV2 | 共有キー無効、TLS 1.2+、6 コンテナー |
+| Storage Account | StorageV2 | 共有キー有効、TLS 1.2+、6 コンテナー |
 | Event Grid System Topic + Subscription | イベント | BlobCreated / 入力コンテナー限定 / デッドレター |
 | Azure Functions Plan + App | FC1 (Flex Consumption) | Linux / Python 3.11 |
 | Microsoft Foundry (AI Services) + Project | AI | ローカル認証無効、コンテンツフィルター有効 |

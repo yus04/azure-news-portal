@@ -197,7 +197,7 @@ az storage blob delete-batch --account-name "$(OUT storageAccountName)" \
 
 ## 9. セキュリティレビューのチェックリスト
 
-- [ ] Storage の `allowSharedKeyAccess` が `false`
+- [ ] Storage の `allowSharedKeyAccess` が `true`（GitHub Actions の接続文字列アップロードを使用する場合）
 - [ ] Cosmos DB の `disableLocalAuth` が `true`
 - [ ] Foundry の `disableLocalAuth` が `true`
 - [ ] ACR の `adminUserEnabled` が `false`

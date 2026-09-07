@@ -8,8 +8,8 @@ param logAnalyticsWorkspaceId string
 @description('作成する Blob コンテナー名の一覧。')
 param containerNames array
 
-@description('共有キー (アカウントキー) 認証を無効化するかどうか。')
-param allowSharedKeyAccess bool = false
+@description('共有キー (アカウントキー) 認証を有効化するかどうか。')
+param allowSharedKeyAccess bool = true
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
