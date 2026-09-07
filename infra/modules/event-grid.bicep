@@ -12,6 +12,9 @@ param deadLetterContainerName string
 param functionAppName string
 param functionName string
 
+@description('デッドレター書き込みに使用するユーザー割り当てマネージド ID のリソース ID。')
+param deadLetterIdentityResourceId string
+
 @description('Event Subscription を作成するかどうか。Function コードのデプロイ後に true にします。')
 param deploySubscription bool = false
 
@@ -29,14 +32,8 @@ param eventTimeToLiveInMinutes int = 1440
 @minValue(1)
 param maxEventsPerBatch int = 1
 
-var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
-
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
-}
-
-resource deadLetterContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
-  name: '${storageAccountName}/default/${deadLetterContainerName}'
 }
 
 resource functionApp 'Microsoft.Web/sites@2024-04-01' existing = {
@@ -48,22 +45,14 @@ resource systemTopic 'Microsoft.EventGrid/systemTopics@2022-06-15' = {
   location: location
   tags: tags
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${deadLetterIdentityResourceId}': {}
+    }
   }
   properties: {
     source: storageAccount.id
     topicType: 'Microsoft.Storage.StorageAccounts'
-  }
-}
-
-// デッドレター書き込みはシステムトピックのマネージド ID で行う (共有キーは無効のため)。
-resource deadLetterRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(deadLetterContainer.id, systemTopic.id, storageBlobDataContributorRoleId)
-  scope: deadLetterContainer
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
-    principalId: systemTopic.identity.principalId
-    principalType: 'ServicePrincipal'
   }
 }
 
@@ -104,7 +93,8 @@ resource eventSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@
     }
     deadLetterWithResourceIdentity: {
       identity: {
-        type: 'SystemAssigned'
+        type: 'UserAssigned'
+        userAssignedIdentity: deadLetterIdentityResourceId
       }
       deadLetterDestination: {
         endpointType: 'StorageBlob'
@@ -115,9 +105,6 @@ resource eventSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@
       }
     }
   }
-  dependsOn: [
-    deadLetterRoleAssignment
-  ]
 }
 
 output systemTopicName string = systemTopic.name

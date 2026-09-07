@@ -194,6 +194,7 @@ var names = {
   portalApp: 'ca-portal-${baseName}'
   functionIdentity: 'id-func-${baseName}-${resourceToken}'
   portalIdentity: 'id-portal-${baseName}-${resourceToken}'
+  eventGridDeadLetterIdentity: 'id-egdl-${baseName}-${resourceToken}'
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +209,12 @@ resource functionIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023
 
 resource portalIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: names.portalIdentity
+  location: location
+  tags: defaultTags
+}
+
+resource eventGridDeadLetterIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: names.eventGridDeadLetterIdentity
   location: location
   tags: defaultTags
 }
@@ -374,6 +381,7 @@ module roleAssignments 'modules/role-assignments.bicep' = {
     cosmosDatabaseName: cosmosDatabaseName
     cosmosArticlesContainerName: cosmosArticlesContainerName
     cosmosStateContainerName: cosmosStateContainerName
+    eventGridDeadLetterPrincipalId: eventGridDeadLetterIdentity.properties.principalId
   }
 }
 
@@ -390,8 +398,12 @@ module eventGrid 'modules/event-grid.bicep' = {
     deadLetterContainerName: deadLetterContainerName
     functionAppName: functions.outputs.functionAppName
     functionName: eventGridFunctionName
+    deadLetterIdentityResourceId: eventGridDeadLetterIdentity.id
     deploySubscription: deployEventGridSubscription
   }
+  dependsOn: [
+    roleAssignments
+  ]
 }
 
 // ---------------------------------------------------------------------------
