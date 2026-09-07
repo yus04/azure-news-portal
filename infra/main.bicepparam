@@ -16,6 +16,7 @@ param foundryLocation = readEnvironmentVariable('AZURE_FOUNDRY_LOCATION', 'eastu
 param tags = {
   environment: readEnvironmentVariable('AZURE_ENV_NAME', 'dev')
   workload: 'azure-news-portal'
+  SecurityControl: 'Ignore'
 }
 
 // --- Functions -------------------------------------------------------------
