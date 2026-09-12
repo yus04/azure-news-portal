@@ -179,7 +179,7 @@ def home(request: Request, query: Annotated[ArticleQuery, Depends(query_params)]
     try:
         facets = get_repository().facets()
     except Exception:  # noqa: BLE001 - ファセット取得失敗でもページは表示する
-        logger.warning("facet lookup failed")
+        logger.exception("facet lookup failed")
         from app.models import Facets
 
         facets = Facets()

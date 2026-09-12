@@ -90,12 +90,23 @@ def _apply_filters(builder: QueryBuilder, query: ArticleQuery) -> None:
 
 
 def build_search_query(
-    query: ArticleQuery, *, projection: str = SUMMARY_PROJECTION
+    query: ArticleQuery,
+    *,
+    projection: str = SUMMARY_PROJECTION,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """検索・フィルター条件から Cosmos DB の SQL を生成します。"""
+    """検索・フィルター条件から Cosmos DB の SQL を生成します。
+
+    ``offset`` と ``limit`` を指定すると OFFSET ... LIMIT 句を付与します。
+    Cosmos DB の Python SDK はクロスパーティションの ORDER BY クエリで
+    継続トークンを利用できないため、ページングはこの方式で行います。
+    """
     builder = QueryBuilder()
     _apply_filters(builder, query)
     sql = f"SELECT {projection} FROM c WHERE {builder.where_clause} ORDER BY c.publishedAt DESC"
+    if limit is not None:
+        sql += f" OFFSET {max(int(offset or 0), 0)} LIMIT {max(int(limit), 1)}"
     return sql, builder.parameters
 
 
@@ -114,23 +125,28 @@ def build_document_query(article_id: str) -> tuple[str, list[dict[str, Any]]]:
     )
 
 
-def build_scalar_facet_query(field: str, *, limit: int = 60) -> str:
-    """スカラー項目のファセット (件数付き) を取得する SQL を生成します。"""
+def build_scalar_facet_query(field: str) -> str:
+    """スカラー項目のファセット (件数付き) を取得する SQL を生成します。
+
+    Cosmos DB では GROUP BY と OFFSET ... LIMIT を併用できないため、
+    件数の絞り込みは呼び出し側で行います。また ``value`` / ``count`` は
+    予約語のためエイリアスには使用しません。
+    """
     if field not in {"category", "source", "importance"}:
         raise ValueError(f"unsupported facet field: {field}")
     return (
-        f"SELECT c.{field} AS value, COUNT(1) AS count FROM c "
+        f"SELECT c.{field} AS facetValue, COUNT(1) AS facetCount FROM c "
         f"WHERE c.processingStatus = 'succeeded' AND IS_DEFINED(c.{field}) "
-        f"GROUP BY c.{field} OFFSET 0 LIMIT {int(limit)}"
+        f"GROUP BY c.{field}"
     )
 
 
-def build_array_facet_query(field: str, *, limit: int = 60) -> str:
+def build_array_facet_query(field: str) -> str:
     """配列項目のファセットを取得する SQL を生成します。"""
     if field not in {"products", "tags", "terms"}:
         raise ValueError(f"unsupported facet field: {field}")
     return (
-        f"SELECT v AS value, COUNT(1) AS count FROM c JOIN v IN c.{field} "
+        f"SELECT v AS facetValue, COUNT(1) AS facetCount FROM c JOIN v IN c.{field} "
         f"WHERE c.processingStatus = 'succeeded' "
-        f"GROUP BY v OFFSET 0 LIMIT {int(limit)}"
+        f"GROUP BY v"
     )
