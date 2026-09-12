@@ -31,6 +31,9 @@ from app.search import (
     build_search_query,
 )
 
+#: ファセットとして返す値の最大件数。
+FACET_LIMIT = 60
+
 
 class RepositoryUnavailableError(RuntimeError):
     """バックエンドへ接続できない場合のエラー。"""
@@ -69,7 +72,10 @@ def decode_cursor(cursor: str | None) -> str | None:
 
 
 def decode_offset(cursor: str | None) -> int:
-    """カーソルをオフセット (0 以上の整数) として解釈します。"""
+    """カーソルをオフセット (0 以上の整数) として解釈します。
+
+    デコードできない場合や数値でない場合は 0 (先頭ページ) を返します。
+    """
     token = decode_cursor(cursor)
     if not token:
         return 0
@@ -257,7 +263,7 @@ class CosmosArticleRepository:
         self._facets_cache = (now, facets)
         return facets
 
-    def _facet(self, sql: str, *, limit: int = 60) -> list[FacetValue]:
+    def _facet(self, sql: str, *, limit: int = FACET_LIMIT) -> list[FacetValue]:
         rows: Iterable[dict[str, Any]] = self._container.query_items(
             query=sql,
             enable_cross_partition_query=True,
@@ -352,7 +358,7 @@ class InMemoryArticleRepository:
 
         def to_values(counter: dict[str, int]) -> list[FacetValue]:
             items = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
-            return [FacetValue(value=k, count=v) for k, v in items][:60]
+            return [FacetValue(value=k, count=v) for k, v in items][:FACET_LIMIT]
 
         def scalar(field: str) -> list[FacetValue]:
             counter: dict[str, int] = {}
