@@ -68,6 +68,10 @@ class TestBuildSearchQuery:
         assert "OR 1=1" not in sql
         assert "' or 1=1 --" in parameter_values(parameters)
 
+    def test_adds_offset_and_limit_for_paging(self) -> None:
+        sql, _ = build_search_query(ArticleQuery(), offset=12, limit=13)
+        assert sql.endswith("ORDER BY c.publishedAt DESC OFFSET 12 LIMIT 13")
+
     def test_count_query_has_no_order_by(self) -> None:
         sql, _ = build_count_query(ArticleQuery(q="gpu"))
         assert sql.startswith("SELECT VALUE COUNT(1)")
@@ -87,6 +91,17 @@ class TestFacetQueries:
     def test_array_facet(self) -> None:
         sql = build_array_facet_query("products")
         assert "JOIN v IN c.products" in sql
+
+    @pytest.mark.parametrize(
+        "sql",
+        [build_scalar_facet_query("category"), build_array_facet_query("products")],
+    )
+    def test_facet_queries_are_supported_by_cosmos(self, sql: str) -> None:
+        # Cosmos DB は GROUP BY と OFFSET ... LIMIT を併用できず、
+        # value / count は予約語のためエイリアスに使えない。
+        assert "OFFSET" not in sql
+        assert "AS value" not in sql and "AS count" not in sql
+        assert "AS facetValue" in sql and "AS facetCount" in sql
 
     @pytest.mark.parametrize("field", ["searchText", "id", "'; DROP"])
     def test_rejects_unknown_fields(self, field: str) -> None:

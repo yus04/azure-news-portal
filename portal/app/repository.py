@@ -68,6 +68,17 @@ def decode_cursor(cursor: str | None) -> str | None:
         return None
 
 
+def decode_offset(cursor: str | None) -> int:
+    """カーソルをオフセット (0 以上の整数) として解釈します。"""
+    token = decode_cursor(cursor)
+    if not token:
+        return 0
+    try:
+        return max(int(token), 0)
+    except ValueError:
+        return 0
+
+
 # ---------------------------------------------------------------------------
 # マッピング
 # ---------------------------------------------------------------------------
@@ -182,24 +193,28 @@ class CosmosArticleRepository:
         self._facets_cache: tuple[float, Facets] | None = None
 
     def search(self, query: ArticleQuery) -> ArticlePage:
-        sql, parameters = build_search_query(query, projection=SUMMARY_PROJECTION)
-        iterator = self._container.query_items(
-            query=sql,
-            parameters=parameters,
-            max_item_count=query.page_size,
-            enable_cross_partition_query=True,
+        offset = decode_offset(query.cursor)
+        # 次ページの有無を判定するため 1 件多く取得します。
+        sql, parameters = build_search_query(
+            query,
+            projection=SUMMARY_PROJECTION,
+            offset=offset,
+            limit=query.page_size + 1,
         )
-        pager = iterator.by_page(decode_cursor(query.cursor))
-        try:
-            page = next(pager)
-            documents = list(page)
-        except StopIteration:
-            documents = []
-        next_token = getattr(pager, "continuation_token", None)
-        items = [to_summary(document, self._settings.images_container) for document in documents]
+        documents = list(
+            self._container.query_items(
+                query=sql,
+                parameters=parameters,
+                max_item_count=query.page_size + 1,
+                enable_cross_partition_query=True,
+            )
+        )
+        has_more = len(documents) > query.page_size
+        window = documents[: query.page_size]
+        items = [to_summary(document, self._settings.images_container) for document in window]
         return ArticlePage(
             items=items,
-            next_cursor=encode_cursor(next_token) if len(items) == query.page_size else None,
+            next_cursor=encode_cursor(str(offset + len(items))) if has_more else None,
         )
 
     def count(self, query: ArticleQuery) -> int:
@@ -242,19 +257,19 @@ class CosmosArticleRepository:
         self._facets_cache = (now, facets)
         return facets
 
-    def _facet(self, sql: str) -> list[FacetValue]:
+    def _facet(self, sql: str, *, limit: int = 60) -> list[FacetValue]:
         rows: Iterable[dict[str, Any]] = self._container.query_items(
             query=sql,
             enable_cross_partition_query=True,
         )
         values: list[FacetValue] = []
         for row in rows:
-            value = row.get("value")
+            value = row.get("facetValue")
             if not value:
                 continue
-            values.append(FacetValue(value=str(value), count=row.get("count")))
+            values.append(FacetValue(value=str(value), count=row.get("facetCount")))
         values.sort(key=lambda item: (-(item.count or 0), item.value))
-        return values[:60]
+        return values[:limit]
 
     def ping(self) -> bool:
         list(
@@ -314,7 +329,7 @@ class InMemoryArticleRepository:
 
     def search(self, query: ArticleQuery) -> ArticlePage:
         matched = [d for d in self._documents if self._matches(d, query)]
-        offset = int(decode_cursor(query.cursor) or 0) if query.cursor else 0
+        offset = decode_offset(query.cursor)
         window = matched[offset : offset + query.page_size]
         next_offset = offset + len(window)
         return ArticlePage(
@@ -333,20 +348,26 @@ class InMemoryArticleRepository:
         return None
 
     def facets(self) -> Facets:
+        documents = [d for d in self._documents if d.get("processingStatus") == "succeeded"]
+
+        def to_values(counter: dict[str, int]) -> list[FacetValue]:
+            items = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
+            return [FacetValue(value=k, count=v) for k, v in items][:60]
+
         def scalar(field: str) -> list[FacetValue]:
             counter: dict[str, int] = {}
-            for document in self._documents:
+            for document in documents:
                 value = document.get(field)
                 if value:
                     counter[str(value)] = counter.get(str(value), 0) + 1
-            return [FacetValue(value=k, count=v) for k, v in sorted(counter.items(), key=lambda kv: -kv[1])]
+            return to_values(counter)
 
         def array(field: str) -> list[FacetValue]:
             counter: dict[str, int] = {}
-            for document in self._documents:
+            for document in documents:
                 for value in document.get(field) or []:
                     counter[str(value)] = counter.get(str(value), 0) + 1
-            return [FacetValue(value=k, count=v) for k, v in sorted(counter.items(), key=lambda kv: -kv[1])]
+            return to_values(counter)
 
         return Facets(
             products=array("products"),
