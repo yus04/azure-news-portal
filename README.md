@@ -27,6 +27,7 @@ Azure Container Apps 上の Web ポータルで配信します。
 14. [想定コストの主要因](#14-想定コストの主要因)
 15. [既知の制約](#15-既知の制約)
 16. [トラブルシューティング](#16-トラブルシューティング)
+17. [コード変更時の再デプロイ (2 回目以降)](#17-コード変更時の再デプロイ-2-回目以降)
 
 ---
 
@@ -265,6 +266,9 @@ az login
 `deploy-all.sh` は以下を順に実行します。個別に実行することもできます。
 すべてのスクリプトは**再実行可能 (冪等)** です。
 
+> **この章は初回デプロイ向けです。** 既にデプロイ済みの環境へコード変更を反映させる場合は
+> [17. コード変更時の再デプロイ](#17-コード変更時の再デプロイ-2-回目以降) を参照してください。
+
 ### 6.1 Azure へのログインとサブスクリプション選択
 
 ```bash
@@ -313,6 +317,8 @@ az deployment group what-if \
 プレースホルダーイメージで起動します (宛先の Function とコンテナーイメージが未作成のため)。
 
 デプロイ出力は `azure-outputs.json` と `.deploy-outputs.env` に保存されます。
+いずれも `.gitignore` 対象の**ローカルキャッシュ**で、clone 直後や別マシンでは存在しません。
+失われた場合の復元手順は [17.1](#171-状態キャッシュの復元-毎回最初に実行) を参照してください。
 
 ### 6.5 Function コードのデプロイ (フェーズ 2)
 
@@ -814,3 +820,147 @@ az deployment operation group list \
   --query "[?properties.provisioningState=='Failed'].{resource:properties.targetResource.resourceName, message:properties.statusMessage.error.message}" \
   -o json
 ```
+
+---
+
+## 17. コード変更時の再デプロイ (2 回目以降)
+
+既にデプロイ済みの環境へコード変更を反映させる手順です。初回構築は [6 章](#6-デプロイ手順-詳細) を参照してください。
+
+デプロイスクリプトは `azure-outputs.json` と `.deploy-outputs.env` を参照しますが、
+これらは `.gitignore` 対象の**ローカルキャッシュ**です。clone 直後・別マシン・CI・
+ワークスペース再作成後などでは存在しないため、**毎回まず復元してから**スクリプトを実行します。
+
+復元しないと次のエラーになります。
+
+```
+[error] /path/to/azure-news-portal/azure-outputs.json がありません。先に scripts/deploy-infra.sh を実行してください。
+```
+
+> このとき `deploy-infra.sh` を実行してはいけません。`PORTAL_IMAGE` が空のまま適用され、
+> Container App のイメージがプレースホルダーに戻ります。必要なのは復元だけです。
+
+### 17.1 状態キャッシュの復元 (毎回最初に実行)
+
+`azure-outputs.json` は `az deployment group show` の出力をそのまま保存したものです。
+すべて**読み取り専用コマンド**なので、既存リソースには一切影響しません。
+
+```bash
+cd ~/azure-news-portal
+az login
+az account set --subscription "<サブスクリプション ID>"
+
+# 既定値以外で構築した場合は実際の値に合わせてください
+export AZURE_RESOURCE_GROUP=rg-newsportal-dev
+export DEPLOYMENT_NAME=newsportal-dev
+
+# 1) デプロイ出力を復元 (deploy-functions.sh はこれだけで動きます)
+az deployment group show \
+  --resource-group "${AZURE_RESOURCE_GROUP}" \
+  --name "${DEPLOYMENT_NAME}" \
+  --query properties.outputs \
+  -o json > azure-outputs.json
+
+# 2) 前回のデプロイパラメーターを復元 (deploy-portal.sh に必要)
+{
+  echo "DEPLOY_EVENT_GRID_SUBSCRIPTION=$(az deployment group show \
+    --resource-group "${AZURE_RESOURCE_GROUP}" --name "${DEPLOYMENT_NAME}" \
+    --query 'properties.parameters.deployEventGridSubscription.value' -o tsv)"
+  echo "PORTAL_IMAGE=$(az deployment group show \
+    --resource-group "${AZURE_RESOURCE_GROUP}" --name "${DEPLOYMENT_NAME}" \
+    --query 'properties.parameters.portalImage.value' -o tsv)"
+} > .deploy-outputs.env
+
+cat .deploy-outputs.env
+```
+
+`.deploy-outputs.env` が次のようになっていれば復元成功です。
+
+```
+DEPLOY_EVENT_GRID_SUBSCRIPTION=true
+PORTAL_IMAGE=cr<...>.azurecr.io/azure-news-portal:20260919043000
+```
+
+| 復元する値 | 必要な場面 | 未復元だとどうなるか |
+|-----------|-----------|--------------------|
+| `azure-outputs.json` | すべてのスクリプト | 冒頭のエラーで停止する |
+| `DEPLOY_EVENT_GRID_SUBSCRIPTION` | `deploy-portal.sh` / `deploy-infra.sh` | `false` 扱いになり、Event Grid Subscription がテンプレートから外れる (ARM の Incremental モードのため既存リソースは削除されないが、状態が食い違う) |
+| `PORTAL_IMAGE` | `deploy-infra.sh` | Container App がプレースホルダーイメージに戻る。`deploy-portal.sh` は自分で新しいイメージを設定するため影響なし |
+
+デプロイ名が分からない場合は一覧から確認します。
+
+```bash
+az deployment group list \
+  --resource-group "${AZURE_RESOURCE_GROUP}" \
+  --query "reverse(sort_by([?properties.provisioningState=='Succeeded'], &properties.timestamp))[].{name:name, time:properties.timestamp}" \
+  -o table
+```
+
+`PORTAL_IMAGE` が空で返る場合 (直近のデプロイがイメージ指定なしだった場合) は、
+稼働中の Container App から取得できます。
+
+```bash
+az containerapp show \
+  --resource-group "${AZURE_RESOURCE_GROUP}" \
+  --name "$(python3 -c "import json;print(json.load(open('azure-outputs.json'))['portalContainerAppName']['value'])")" \
+  --query "properties.template.containers[0].image" -o tsv
+```
+
+`.env` は既定値 (`dev` / `newsportal` / `japaneast` / `eastus2` / `rg-newsportal-dev`) で動くため、
+既定どおりに構築していれば復元不要です。異なる値を使った場合のみ [5 章](#5-クイックスタート) の内容で再作成してください。
+
+### 17.2 変更箇所ごとに実行するスクリプト
+
+| 変更した場所 | 実行するもの | 補足 |
+|-------------|------------|------|
+| `portal/**` (app / templates / static) | `./scripts/deploy-portal.sh` | ACR でイメージを build し Container App を更新 |
+| `functions/**` | `./scripts/deploy-functions.sh` | zip デプロイ。Event Grid の再設定は不要 |
+| `shared/newsportal_shared/**` | **両方** | Function と Portal が同じ定義を共有するため |
+| `infra/**` | `./scripts/deploy-infra.sh` | 17.1 の復元を済ませたうえで実行 (下記の注意を参照) |
+| `docs/**`, `README.md`, `samples/**`, テストのみ | デプロイ不要 | — |
+
+### 17.3 実行
+
+```bash
+# 17.1 の復元後
+./scripts/deploy-functions.sh
+./scripts/deploy-portal.sh
+```
+
+順序の依存はありません。`deploy-portal.sh` は内部で `main.bicep` を冪等に再適用するため、
+`infra/` を変更していなければ `deploy-infra.sh` を別途実行する必要はありません。
+
+`infra/` を変更した場合のみ、パラメーターを明示して実行します。
+
+```bash
+set -a; source .deploy-outputs.env; set +a
+./scripts/deploy-infra.sh
+```
+
+### 17.4 反映の確認
+
+```bash
+./scripts/verify-deployment.sh
+
+PORTAL_URL="$(python3 -c "import json;print(json.load(open('azure-outputs.json'))['portalUrl']['value'])")"
+curl -fsS "${PORTAL_URL}/healthz"
+
+# Function のリビジョン確認
+az functionapp function show \
+  --resource-group "${AZURE_RESOURCE_GROUP}" \
+  --name "$(python3 -c "import json;print(json.load(open('azure-outputs.json'))['functionAppName']['value'])")" \
+  --function-name ProcessArticleBlob --query name -o tsv
+```
+
+Portal の絞り込み条件やファセットは最大 5 分キャッシュされます (`PORTAL_FACETS_CACHE_SECONDS`)。
+新しいリビジョンに切り替わればキャッシュは破棄されるため、通常は待つ必要はありません。
+
+### 17.5 よくある失敗
+
+| 症状 | 原因 | 対処 |
+|------|------|------|
+| `azure-outputs.json がありません` | キャッシュ未復元 | [17.1](#171-状態キャッシュの復元-毎回最初に実行) を実行 |
+| `output 'functionAppName' が見つかりません` | 別のデプロイ名の出力を取得した | `az deployment group list` で正しい名前を確認して 17.1 をやり直す |
+| Portal がプレースホルダー画面に戻った | `PORTAL_IMAGE` 未設定で `deploy-infra.sh` を実行した | `./scripts/deploy-portal.sh` を実行すれば復旧する |
+| 記事が処理されなくなった | `DEPLOY_EVENT_GRID_SUBSCRIPTION` 未設定のまま再デプロイした | `./scripts/configure-event-grid.sh` で再作成する |
+| `az login` 済みなのに権限エラー | サブスクリプションが既定のまま | `az account set --subscription <ID>` を実行する |
