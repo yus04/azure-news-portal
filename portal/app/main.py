@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlencode
@@ -116,8 +115,8 @@ def query_params(
     tag: Annotated[list[str], Query()] = [],  # noqa: B006
     importance: Annotated[list[str], Query()] = [],  # noqa: B006
     source: Annotated[list[str], Query()] = [],  # noqa: B006
-    date_from: Annotated[date | None, Query(alias="from")] = None,
-    date_to: Annotated[date | None, Query(alias="to")] = None,
+    date_from: Annotated[str | None, Query(alias="from", max_length=32)] = None,
+    date_to: Annotated[str | None, Query(alias="to", max_length=32)] = None,
     size: Annotated[int | None, Query(ge=1, le=50)] = None,
     cursor: Annotated[str | None, Query(max_length=8000)] = None,
 ) -> ArticleQuery:
@@ -178,8 +177,8 @@ def home(request: Request, query: Annotated[ArticleQuery, Depends(query_params)]
     page = _search(query)
     try:
         facets = get_repository().facets()
-    except Exception:  # noqa: BLE001 - ファセット取得失敗でもページは表示する
-        logger.exception("facet lookup failed")
+    except Exception as exc:  # noqa: BLE001 - ファセット取得失敗でもページは表示する
+        logger.exception("facet lookup failed: %s", type(exc).__name__)
         from app.models import Facets
 
         facets = Facets()

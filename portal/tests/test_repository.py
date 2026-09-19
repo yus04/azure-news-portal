@@ -133,51 +133,60 @@ def _document(index: int) -> dict:
 
 
 class TestCosmosArticleRepository:
+    @staticmethod
+    def _repository(container: MagicMock) -> CosmosArticleRepository:
+        database = MagicMock()
+        database.get_container_client.return_value = container
+        client = MagicMock()
+        client.get_database_client.return_value = database
+        return CosmosArticleRepository(Settings(), credential=MagicMock(), client=client)
+
     def test_search_enables_cross_partition_query(self) -> None:
         container = MagicMock()
-        container.query_items.return_value = []
-        repository = _cosmos_repository(container)
+        container.query_items.return_value.by_page.return_value = iter([[]])
 
-        repository.search(ArticleQuery())
+        self._repository(container).search(ArticleQuery())
 
         assert container.query_items.call_args.kwargs["enable_cross_partition_query"] is True
 
-    def test_search_uses_offset_limit_paging(self) -> None:
+    def test_facets_read_non_reserved_aliases(self) -> None:
         container = MagicMock()
-        container.query_items.return_value = [_document(i) for i in range(3)]
-        repository = _cosmos_repository(container)
+        container.query_items.return_value = [{"facetValue": "Azure Updates", "facetCount": 7}]
 
-        page = repository.search(ArticleQuery(page_size=2))
+        facets = self._repository(container).facets()
 
-        sql = container.query_items.call_args.kwargs["query"]
-        assert "OFFSET 0 LIMIT 3" in sql
-        assert len(page.items) == 2
-        assert page.next_cursor
-        assert decode_cursor(page.next_cursor) == "2"
+        assert facets.sources[0].value == "Azure Updates"
+        assert facets.sources[0].count == 7
 
-    def test_search_continues_from_cursor(self) -> None:
+    def test_facets_fall_back_to_distinct_when_group_by_fails(self) -> None:
         container = MagicMock()
-        container.query_items.return_value = [_document(i) for i in range(2)]
-        repository = _cosmos_repository(container)
 
-        page = repository.search(ArticleQuery(page_size=2, cursor=encode_cursor("2")))
+        def query_items(*, query: str, **_: object):
+            if "GROUP BY" in query:
+                raise RuntimeError("Syntax error, incorrect syntax near 'value'")
+            return ["Azure Updates", "Microsoft Foundry Blog", "Azure Updates"]
 
-        assert "OFFSET 2 LIMIT 3" in container.query_items.call_args.kwargs["query"]
-        assert len(page.items) == 2
-        assert page.next_cursor is None
+        container.query_items.side_effect = query_items
 
-    def test_facets_read_aliased_columns(self) -> None:
+        facets = self._repository(container).facets()
+
+        assert [item.value for item in facets.sources] == ["Azure Updates", "Microsoft Foundry Blog"]
+        assert facets.sources[0].count is None
+
+    def test_one_broken_facet_does_not_empty_the_others(self) -> None:
         container = MagicMock()
-        container.query_items.return_value = [
-            {"facetValue": "Azure Container Apps", "facetCount": 3},
-            {"facetValue": "Azure Storage", "facetCount": 5},
-        ]
-        repository = _cosmos_repository(container)
 
-        facets = repository.facets()
+        def query_items(*, query: str, **_: object):
+            if "c.source" in query:
+                raise RuntimeError("boom")
+            return [{"facetValue": "Azure Container Apps", "facetCount": 3}]
 
-        assert [item.value for item in facets.products] == ["Azure Storage", "Azure Container Apps"]
-        assert facets.categories and facets.sources
+        container.query_items.side_effect = query_items
+
+        facets = self._repository(container).facets()
+
+        assert facets.sources == []
+        assert facets.products[0].value == "Azure Container Apps"
 
 
 class TestMediaPathSafety:

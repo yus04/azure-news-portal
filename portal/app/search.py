@@ -125,17 +125,24 @@ def build_document_query(article_id: str) -> tuple[str, list[dict[str, Any]]]:
     )
 
 
-def build_scalar_facet_query(field: str) -> str:
-    """スカラー項目のファセット (件数付き) を取得する SQL を生成します。
+#: ファセットクエリの列エイリアス。``value`` / ``count`` は Cosmos DB の予約語のため使用できない。
+FACET_VALUE_ALIAS = "facetValue"
+FACET_COUNT_ALIAS = "facetCount"
 
-    Cosmos DB では GROUP BY と OFFSET ... LIMIT を併用できないため、
-    件数の絞り込みは呼び出し側で行います。また ``value`` / ``count`` は
-    予約語のためエイリアスには使用しません。
-    """
-    if field not in {"category", "source", "importance"}:
+_SCALAR_FACET_FIELDS = frozenset({"category", "source", "importance"})
+_ARRAY_FACET_FIELDS = frozenset({"products", "tags", "terms"})
+
+
+def _check_facet_field(field: str, allowed: frozenset[str]) -> None:
+    if field not in allowed:
         raise ValueError(f"unsupported facet field: {field}")
+
+
+def build_scalar_facet_query(field: str) -> str:
+    """スカラー項目のファセット (件数付き) を取得する SQL を生成します。"""
+    _check_facet_field(field, _SCALAR_FACET_FIELDS)
     return (
-        f"SELECT c.{field} AS facetValue, COUNT(1) AS facetCount FROM c "
+        f"SELECT c.{field} AS {FACET_VALUE_ALIAS}, COUNT(1) AS {FACET_COUNT_ALIAS} FROM c "
         f"WHERE c.processingStatus = 'succeeded' AND IS_DEFINED(c.{field}) "
         f"GROUP BY c.{field}"
     )
@@ -143,10 +150,24 @@ def build_scalar_facet_query(field: str) -> str:
 
 def build_array_facet_query(field: str) -> str:
     """配列項目のファセットを取得する SQL を生成します。"""
-    if field not in {"products", "tags", "terms"}:
-        raise ValueError(f"unsupported facet field: {field}")
+    _check_facet_field(field, _ARRAY_FACET_FIELDS)
     return (
-        f"SELECT v AS facetValue, COUNT(1) AS facetCount FROM c JOIN v IN c.{field} "
+        f"SELECT v AS {FACET_VALUE_ALIAS}, COUNT(1) AS {FACET_COUNT_ALIAS} FROM c JOIN v IN c.{field} "
         f"WHERE c.processingStatus = 'succeeded' "
         f"GROUP BY v"
     )
+
+
+def build_scalar_distinct_query(field: str) -> str:
+    """件数なしでスカラー項目の候補値だけを取得する SQL (GROUP BY のフォールバック)。"""
+    _check_facet_field(field, _SCALAR_FACET_FIELDS)
+    return (
+        f"SELECT DISTINCT VALUE c.{field} FROM c "
+        f"WHERE c.processingStatus = 'succeeded' AND IS_DEFINED(c.{field})"
+    )
+
+
+def build_array_distinct_query(field: str) -> str:
+    """件数なしで配列項目の候補値だけを取得する SQL (GROUP BY のフォールバック)。"""
+    _check_facet_field(field, _ARRAY_FACET_FIELDS)
+    return f"SELECT DISTINCT VALUE v FROM c JOIN v IN c.{field} WHERE c.processingStatus = 'succeeded'"

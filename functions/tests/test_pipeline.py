@@ -185,6 +185,36 @@ class TestInvalidInput:
             pipeline.handle_event(blob_created_event())
 
 
+class TestOriginalFetchOptOut:
+    def test_fetch_original_false_skips_the_original_page(
+        self, settings_with_fetch, blob_store, repository, generator, sample_input
+    ) -> None:
+        # make_pipeline の既定 fetch_fn は呼ばれると AssertionError を送出する。
+        payload = {**sample_input, "images": [], "content": "<p>short body.</p>", "fetchOriginal": False}
+        seed_blob(blob_store, payload)
+        pipeline = make_pipeline(settings_with_fetch, blob_store, repository, generator)
+
+        outcome = pipeline.handle_event(blob_created_event())
+
+        assert outcome.status == "succeeded"
+        assert repository.articles[outcome.article_id]["imageAssets"] == []
+
+    def test_fetch_original_defaults_to_enabled(
+        self, settings_with_fetch, blob_store, repository, generator, sample_input
+    ) -> None:
+        calls: list[str] = []
+
+        def fetch(url, *args, **kwargs):
+            calls.append(url)
+            return make_fetch_result(ARTICLE_HTML)
+
+        seed_blob(blob_store, {**sample_input, "images": [], "content": "<p>short body.</p>"})
+        pipeline = make_pipeline(settings_with_fetch, blob_store, repository, generator, fetch_fn=fetch)
+
+        assert pipeline.handle_event(blob_created_event()).status == "succeeded"
+        assert calls
+
+
 class TestExternalFailures:
     def test_original_fetch_failure_still_produces_article(
         self, settings_with_fetch, blob_store, repository, generator, sample_input

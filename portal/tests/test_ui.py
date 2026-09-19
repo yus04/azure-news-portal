@@ -45,6 +45,7 @@ class TestHome:
     def test_fallback_for_articles_without_image(self, client) -> None:
         body = html_of(client, "/")
         assert "media-fallback" in body
+        assert "/static/img/source-azure-updates.svg" in body
 
     def test_shows_filter_options(self, client) -> None:
         body = html_of(client, "/")
@@ -53,6 +54,16 @@ class TestHome:
         assert 'name="importance"' in body
         assert 'name="source"' in body
         assert 'name="from"' in body
+
+    def test_filter_options_are_populated_from_facets(self, client) -> None:
+        body = html_of(client, "/")
+        source_select = body.split('name="source"', 1)[1].split("</select>", 1)[0]
+        assert source_select.count("<option") > 1
+        assert "Azure Updates" in source_select
+
+    def test_search_with_empty_date_inputs_renders(self, client) -> None:
+        body = html_of(client, "/?q=observability&product=&category=&tag=&importance=&source=&from=&to=")
+        assert 'id="article-grid"' in body
 
 
 class TestSearchAndFilters:

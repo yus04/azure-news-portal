@@ -54,6 +54,17 @@ class TestNormalizeInput:
         assert article.raw_blob_path == "raw-articles/a.json"
         assert len(article.article_id) == 32
 
+    def test_fetch_original_defaults_to_true(self, sample_input: dict[str, Any]) -> None:
+        assert normalize_input(sample_input).fetch_original is True
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [(False, False), ("false", False), ("no", False), (True, True), ("true", True), ("", True)],
+    )
+    def test_reads_fetch_original_flag(self, sample_input: dict[str, Any], raw: Any, expected: bool) -> None:
+        article = normalize_input({**sample_input, "fetchOriginal": raw})
+        assert article.fetch_original is expected
+
     def test_supports_alternative_field_names(self) -> None:
         payload = {
             "headline": "Retirement notice",

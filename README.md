@@ -55,9 +55,12 @@ Azure Container Apps 上の Web ポータルで配信します。
 
 ### 対象外
 
-Azure Feed リポジトリの fork、GitHub Actions の変更、RSS 収集、サイトのスクレイピング、
-GitHub Webhook、Blob Storage へのアップロード処理は本リポジトリの対象外です
-(別途完了済みという前提)。ただし入力 JSON のスキーマが確定していない場合に備え、
+記事の収集と Blob Storage へのアップロードは本リポジトリの対象外で、情報源ごとに別リポジトリで
+管理します (Azure Feed、Azure Updates など)。本リポジトリは `raw-articles` コンテナーに
+置かれた記事 JSON の処理と配信を担当します。
+
+収集側が守るべき入力 JSON のスキーマ (必須項目、許容する別名、`fetchOriginal` など) は
+[docs/assumptions.md](docs/assumptions.md) にまとめています。スキーマが確定していない場合に備え、
 **入力スキーマの検証と変換層は実装済み**です。
 
 ---
