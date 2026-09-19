@@ -114,6 +114,24 @@ class TestInMemoryRepository:
         assert facets.categories
 
 
+def _cosmos_repository(container: MagicMock) -> CosmosArticleRepository:
+    database = MagicMock()
+    database.get_container_client.return_value = container
+    client = MagicMock()
+    client.get_database_client.return_value = database
+    return CosmosArticleRepository(Settings(), credential=MagicMock(), client=client)
+
+
+def _document(index: int) -> dict:
+    return {
+        "id": f"id{index}",
+        "title": f"title {index}",
+        "source": "Azure Updates",
+        "publishedAt": f"2026-09-{index + 1:02d}T00:00:00Z",
+        "originalUrl": "https://example.com",
+    }
+
+
 class TestCosmosArticleRepository:
     @staticmethod
     def _repository(container: MagicMock) -> CosmosArticleRepository:

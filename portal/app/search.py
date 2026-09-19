@@ -90,12 +90,23 @@ def _apply_filters(builder: QueryBuilder, query: ArticleQuery) -> None:
 
 
 def build_search_query(
-    query: ArticleQuery, *, projection: str = SUMMARY_PROJECTION
+    query: ArticleQuery,
+    *,
+    projection: str = SUMMARY_PROJECTION,
+    offset: int | None = None,
+    limit: int | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """検索・フィルター条件から Cosmos DB の SQL を生成します。"""
+    """検索・フィルター条件から Cosmos DB の SQL を生成します。
+
+    ``offset`` と ``limit`` を指定すると OFFSET ... LIMIT 句を付与します。
+    Cosmos DB の Python SDK はクロスパーティションの ORDER BY クエリで
+    継続トークンを利用できないため、ページングはこの方式で行います。
+    """
     builder = QueryBuilder()
     _apply_filters(builder, query)
     sql = f"SELECT {projection} FROM c WHERE {builder.where_clause} ORDER BY c.publishedAt DESC"
+    if limit is not None:
+        sql += f" OFFSET {max(int(offset or 0), 0)} LIMIT {max(int(limit), 1)}"
     return sql, builder.parameters
 
 

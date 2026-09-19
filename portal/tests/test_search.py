@@ -70,6 +70,10 @@ class TestBuildSearchQuery:
         assert "OR 1=1" not in sql
         assert "' or 1=1 --" in parameter_values(parameters)
 
+    def test_adds_offset_and_limit_for_paging(self) -> None:
+        sql, _ = build_search_query(ArticleQuery(), offset=12, limit=13)
+        assert sql.endswith("ORDER BY c.publishedAt DESC OFFSET 12 LIMIT 13")
+
     def test_count_query_has_no_order_by(self) -> None:
         sql, _ = build_count_query(ArticleQuery(q="gpu"))
         assert sql.startswith("SELECT VALUE COUNT(1)")

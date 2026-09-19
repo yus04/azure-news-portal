@@ -75,6 +75,20 @@ def decode_cursor(cursor: str | None) -> str | None:
         return None
 
 
+def decode_offset(cursor: str | None) -> int:
+    """カーソルをオフセット (0 以上の整数) として解釈します。
+
+    デコードできない場合や数値でない場合は 0 (先頭ページ) を返します。
+    """
+    token = decode_cursor(cursor)
+    if not token:
+        return 0
+    try:
+        return max(int(token), 0)
+    except ValueError:
+        return 0
+
+
 # ---------------------------------------------------------------------------
 # マッピング
 # ---------------------------------------------------------------------------
@@ -189,24 +203,28 @@ class CosmosArticleRepository:
         self._facets_cache: tuple[float, Facets] | None = None
 
     def search(self, query: ArticleQuery) -> ArticlePage:
-        sql, parameters = build_search_query(query, projection=SUMMARY_PROJECTION)
-        iterator = self._container.query_items(
-            query=sql,
-            parameters=parameters,
-            max_item_count=query.page_size,
-            enable_cross_partition_query=True,
+        offset = decode_offset(query.cursor)
+        # 次ページの有無を判定するため 1 件多く取得します。
+        sql, parameters = build_search_query(
+            query,
+            projection=SUMMARY_PROJECTION,
+            offset=offset,
+            limit=query.page_size + 1,
         )
-        pager = iterator.by_page(decode_cursor(query.cursor))
-        try:
-            page = next(pager)
-            documents = list(page)
-        except StopIteration:
-            documents = []
-        next_token = getattr(pager, "continuation_token", None)
-        items = [to_summary(document, self._settings.images_container) for document in documents]
+        documents = list(
+            self._container.query_items(
+                query=sql,
+                parameters=parameters,
+                max_item_count=query.page_size + 1,
+                enable_cross_partition_query=True,
+            )
+        )
+        has_more = len(documents) > query.page_size
+        window = documents[: query.page_size]
+        items = [to_summary(document, self._settings.images_container) for document in window]
         return ArticlePage(
             items=items,
-            next_cursor=encode_cursor(next_token) if len(items) == query.page_size else None,
+            next_cursor=encode_cursor(str(offset + len(items))) if has_more else None,
         )
 
     def count(self, query: ArticleQuery) -> int:
@@ -358,7 +376,7 @@ class InMemoryArticleRepository:
 
     def search(self, query: ArticleQuery) -> ArticlePage:
         matched = [d for d in self._documents if self._matches(d, query)]
-        offset = int(decode_cursor(query.cursor) or 0) if query.cursor else 0
+        offset = decode_offset(query.cursor)
         window = matched[offset : offset + query.page_size]
         next_offset = offset + len(window)
         return ArticlePage(
