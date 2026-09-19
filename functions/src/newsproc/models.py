@@ -25,6 +25,10 @@ class NormalizedArticle(BaseModel):
     summary_raw: str | None = None
     body_raw: str | None = None
     image_urls: list[str] = Field(default_factory=list)
+    fetch_original: bool = Field(
+        default=True,
+        description="元記事ページを取得して本文・画像を補完してよいか。入力側で本文が完結している場合は False。",
+    )
     raw_blob_path: str | None = None
 
     @property

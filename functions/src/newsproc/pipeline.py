@@ -274,7 +274,7 @@ class ArticlePipeline:
     ) -> ArticleDocument:
         page: ExtractedPage | None = None
         needs_fetch = not article.has_sufficient_body or not article.image_urls
-        if needs_fetch:
+        if article.fetch_original and needs_fetch:
             page = self._fetch_original(article, metrics)
 
         body_text = article.body_raw or ""

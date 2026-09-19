@@ -34,6 +34,11 @@ Azure Feed リポジトリの fork と Blob Storage への保存処理は本リ�
 | カテゴリ | `category`, `sourceCategory`, `section`, `categories`, `topic`, `topics` |
 | 著者 | `author`, `authors`, `creator`, `byline`, `dc:creator` |
 | 画像 | `images`, `image`, `imageUrl`, `thumbnail`, `ogImage`, `enclosure`, `media` |
+| 元記事取得の可否 | `fetchOriginal`, `allowOriginalFetch` (真偽値、既定 `true`) |
+
+`fetchOriginal` に `false` を指定すると、本文や画像が不足していても元記事ページを取得しません。
+入力側で本文が完結しており、元記事ページが JS レンダリングで本文を返さない情報源
+(Azure Updates など) で使用します。指定しない場合は従来どおり不足時に取得します。
 
 また `article` / `item` / `entry` / `data` / `payload` / `record` による入れ子も自動的に展開します。
 

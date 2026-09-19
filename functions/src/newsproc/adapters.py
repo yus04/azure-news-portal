@@ -99,6 +99,12 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "topics",
     ),
     "author": ("author", "authors", "creator", "byline", "dc:creator"),
+    "fetch_original": (
+        "fetchOriginal",
+        "fetch_original",
+        "allowOriginalFetch",
+        "allow_original_fetch",
+    ),
     "images": (
         "images",
         "image",
@@ -277,6 +283,19 @@ def _derive_source(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+def _as_bool(value: Any, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 def normalize_input(payload: Any, *, raw_blob_path: str | None = None) -> NormalizedArticle:
     """入力 JSON を :class:`NormalizedArticle` へ変換します。"""
     if not isinstance(payload, dict):
@@ -317,6 +336,7 @@ def normalize_input(payload: Any, *, raw_blob_path: str | None = None) -> Normal
 
     authors = _as_text_list(_lookup(body, "author"))
     categories = _as_text_list(_lookup(body, "category"))
+    fetch_original = _as_bool(_lookup(body, "fetch_original"), default=True)
 
     return NormalizedArticle(
         article_id=stable_article_id(normalized_url),
@@ -331,6 +351,7 @@ def normalize_input(payload: Any, *, raw_blob_path: str | None = None) -> Normal
         summary_raw=strip_html(_as_text(_lookup(body, "summary"))),
         body_raw=strip_html(_as_text(_lookup(body, "body"))),
         image_urls=_extract_image_urls(body, normalized_url),
+        fetch_original=fetch_original,
         raw_blob_path=raw_blob_path,
     )
 

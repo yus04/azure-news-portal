@@ -30,6 +30,14 @@ UPDATE_TYPE_LABELS: dict[str, str] = {
     "other": "その他",
 }
 
+#: 記事に画像が無い場合に使う情報源別の既定画像。
+SOURCE_FALLBACK_IMAGES: dict[str, str] = {
+    "Azure Updates": "/static/img/source-azure-updates.svg",
+}
+
+#: 情報源の指定が無い場合の既定画像。
+DEFAULT_FALLBACK_IMAGE = "/static/img/source-generic.svg"
+
 
 class ImageView(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -81,6 +89,10 @@ class ArticleSummary(BaseModel):
     @property
     def published_display(self) -> str:
         return format_datetime(self.published_at)
+
+    @property
+    def fallback_image_src(self) -> str:
+        return SOURCE_FALLBACK_IMAGES.get(self.source, DEFAULT_FALLBACK_IMAGE)
 
 
 class ArticleDetail(ArticleSummary):
@@ -142,6 +154,14 @@ class ArticleQuery(BaseModel):
             return None
         text = str(value).strip()
         return text[:200] or None
+
+    @field_validator("published_from", "published_to", mode="before")
+    @classmethod
+    def _clean_date(cls, value: Any) -> Any:
+        # HTML フォームは未入力の日付を空文字で送るため、None へ倒す。
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @field_validator("products", "categories", "tags", "importances", "sources", mode="before")
     @classmethod

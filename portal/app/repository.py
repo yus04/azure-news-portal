@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 import time
 from collections.abc import Iterable
 from typing import Any, Protocol
@@ -23,13 +24,19 @@ from app.models import (
     ImageView,
 )
 from app.search import (
+    FACET_COUNT_ALIAS,
+    FACET_VALUE_ALIAS,
     SUMMARY_PROJECTION,
+    build_array_distinct_query,
     build_array_facet_query,
     build_count_query,
     build_document_query,
+    build_scalar_distinct_query,
     build_scalar_facet_query,
     build_search_query,
 )
+
+logger = logging.getLogger("portal")
 
 
 class RepositoryUnavailableError(RuntimeError):
@@ -233,28 +240,65 @@ class CosmosArticleRepository:
             return self._facets_cache[1]
 
         facets = Facets(
-            products=self._facet(build_array_facet_query("products")),
-            tags=self._facet(build_array_facet_query("tags")),
-            categories=self._facet(build_scalar_facet_query("category")),
-            sources=self._facet(build_scalar_facet_query("source")),
-            importances=self._facet(build_scalar_facet_query("importance")),
+            products=self._facet(build_array_facet_query("products"), build_array_distinct_query("products")),
+            tags=self._facet(build_array_facet_query("tags"), build_array_distinct_query("tags")),
+            categories=self._facet(build_scalar_facet_query("category"), build_scalar_distinct_query("category")),
+            sources=self._facet(build_scalar_facet_query("source"), build_scalar_distinct_query("source")),
+            importances=self._facet(
+                build_scalar_facet_query("importance"), build_scalar_distinct_query("importance")
+            ),
         )
         self._facets_cache = (now, facets)
         return facets
 
-    def _facet(self, sql: str) -> list[FacetValue]:
+    def _facet(self, grouped_sql: str, distinct_sql: str, *, limit: int = 60) -> list[FacetValue]:
+        """件数付きファセットを取得し、失敗した場合は件数なしの候補一覧へフォールバックします。"""
+        values: list[FacetValue] = []
+        try:
+            values = self._grouped_facet(grouped_sql)
+        except Exception as exc:  # noqa: BLE001 - 1 項目の失敗で他のフィルターを空にしない
+            logger.warning("grouped facet query failed (%s): %s", type(exc).__name__, grouped_sql)
+
+        if not values:
+            try:
+                values = self._distinct_facet(distinct_sql)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("distinct facet query failed (%s): %s", type(exc).__name__, distinct_sql)
+                return []
+
+        values.sort(key=lambda item: (-(item.count or 0), item.value))
+        return values[:limit]
+
+    def _grouped_facet(self, sql: str) -> list[FacetValue]:
         rows: Iterable[dict[str, Any]] = self._container.query_items(
             query=sql,
             enable_cross_partition_query=True,
         )
         values: list[FacetValue] = []
         for row in rows:
-            value = row.get("value")
+            value = row.get(FACET_VALUE_ALIAS) if isinstance(row, dict) else row
             if not value:
                 continue
-            values.append(FacetValue(value=str(value), count=row.get("count")))
-        values.sort(key=lambda item: (-(item.count or 0), item.value))
-        return values[:60]
+            count = row.get(FACET_COUNT_ALIAS) if isinstance(row, dict) else None
+            values.append(FacetValue(value=str(value), count=count))
+        return values
+
+    def _distinct_facet(self, sql: str) -> list[FacetValue]:
+        rows: Iterable[Any] = self._container.query_items(
+            query=sql,
+            enable_cross_partition_query=True,
+        )
+        values: list[FacetValue] = []
+        seen: set[str] = set()
+        for row in rows:
+            if not isinstance(row, str) or not row:
+                continue
+            if row in seen:
+                continue
+            seen.add(row)
+            values.append(FacetValue(value=row, count=None))
+        values.sort(key=lambda item: item.value)
+        return values
 
     def ping(self) -> bool:
         list(
@@ -333,20 +377,22 @@ class InMemoryArticleRepository:
         return None
 
     def facets(self) -> Facets:
+        succeeded = [d for d in self._documents if d.get("processingStatus") == "succeeded"]
+
         def scalar(field: str) -> list[FacetValue]:
             counter: dict[str, int] = {}
-            for document in self._documents:
+            for document in succeeded:
                 value = document.get(field)
                 if value:
                     counter[str(value)] = counter.get(str(value), 0) + 1
-            return [FacetValue(value=k, count=v) for k, v in sorted(counter.items(), key=lambda kv: -kv[1])]
+            return [FacetValue(value=k, count=v) for k, v in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))]
 
         def array(field: str) -> list[FacetValue]:
             counter: dict[str, int] = {}
-            for document in self._documents:
+            for document in succeeded:
                 for value in document.get(field) or []:
                     counter[str(value)] = counter.get(str(value), 0) + 1
-            return [FacetValue(value=k, count=v) for k, v in sorted(counter.items(), key=lambda kv: -kv[1])]
+            return [FacetValue(value=k, count=v) for k, v in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))]
 
         return Facets(
             products=array("products"),

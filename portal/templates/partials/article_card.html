@@ -9,8 +9,9 @@
         decoding="async"
       />
       {% else %}
-      <div class="media-fallback" role="img" aria-label="画像なし">
-        <span>{{ article.source }}</span>
+      <div class="media-fallback">
+        <img src="{{ article.fallback_image_src }}" alt="{{ article.source }}" loading="lazy" decoding="async" />
+        <span class="media-fallback__label">{{ article.source }}</span>
       </div>
       {% endif %}
     </div>

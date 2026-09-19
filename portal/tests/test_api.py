@@ -48,6 +48,20 @@ class TestArticlesApi:
     def test_rejects_invalid_page_size(self, client, size: str) -> None:
         assert client.get(f"/api/articles?size={size}").status_code == 422
 
+    def test_accepts_empty_date_filters(self, client) -> None:
+        # HTML フォームは未入力の日付を from=&to= として送る
+        response = client.get("/api/articles?q=observability&from=&to=")
+        assert response.status_code == 200
+        assert len(response.json()["items"]) == 1
+
+    def test_accepts_empty_filter_values(self, client) -> None:
+        response = client.get("/api/articles?q=&product=&category=&tag=&importance=&source=&from=&to=")
+        assert response.status_code == 200
+        assert response.json()["items"]
+
+    def test_rejects_malformed_date(self, client) -> None:
+        assert client.get("/api/articles?from=not-a-date").status_code == 400
+
     def test_rejects_unknown_parameters_gracefully(self, client) -> None:
         # 未知のクエリパラメーターは無視され 200 を返す
         assert client.get("/api/articles?unknown=1").status_code == 200
@@ -70,6 +84,7 @@ class TestFiltersApi:
         assert payload["products"]
         assert payload["categories"]
         assert payload["sources"]
+        assert payload["tags"]
 
 
 class TestSecurityHeaders:

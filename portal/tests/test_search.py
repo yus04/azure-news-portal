@@ -7,6 +7,8 @@ from datetime import date
 import pytest
 from app.models import ArticleQuery
 from app.search import (
+    FACET_COUNT_ALIAS,
+    FACET_VALUE_ALIAS,
     build_array_facet_query,
     build_count_query,
     build_document_query,
@@ -88,6 +90,23 @@ class TestFacetQueries:
         sql = build_array_facet_query("products")
         assert "JOIN v IN c.products" in sql
 
+    @pytest.mark.parametrize("field", ["category", "source", "importance"])
+    def test_scalar_facet_avoids_reserved_aliases(self, field: str) -> None:
+        sql = build_scalar_facet_query(field)
+        # VALUE / COUNT は Cosmos DB の予約語のため列エイリアスに使えない
+        assert " AS value" not in sql
+        assert " AS count" not in sql
+        assert f"AS {FACET_VALUE_ALIAS}" in sql
+        assert f"AS {FACET_COUNT_ALIAS}" in sql
+
+    @pytest.mark.parametrize("field", ["products", "tags", "terms"])
+    def test_array_facet_avoids_reserved_aliases(self, field: str) -> None:
+        sql = build_array_facet_query(field)
+        assert " AS value" not in sql
+        assert " AS count" not in sql
+        assert f"AS {FACET_VALUE_ALIAS}" in sql
+        assert f"AS {FACET_COUNT_ALIAS}" in sql
+
     @pytest.mark.parametrize("field", ["searchText", "id", "'; DROP"])
     def test_rejects_unknown_fields(self, field: str) -> None:
         with pytest.raises(ValueError):
@@ -114,3 +133,17 @@ class TestArticleQueryValidation:
         assert ArticleQuery().is_filtered is False
         assert ArticleQuery(q="x").is_filtered is True
         assert ArticleQuery(tags=["t"]).is_filtered is True
+
+    def test_treats_empty_date_strings_as_unset(self) -> None:
+        query = ArticleQuery(published_from="", published_to="  ")
+        assert query.published_from is None
+        assert query.published_to is None
+        assert query.is_filtered is False
+
+    def test_parses_iso_date_strings(self) -> None:
+        query = ArticleQuery(published_from="2026-08-01")
+        assert query.published_from == date(2026, 8, 1)
+
+    def test_rejects_malformed_date_strings(self) -> None:
+        with pytest.raises(ValueError):
+            ArticleQuery(published_from="not-a-date")
