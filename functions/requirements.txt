@@ -19,5 +19,5 @@ pydantic==2.10.6
 # HTTP / HTML / 画像
 httpx==0.27.2
 beautifulsoup4==4.12.3
-soupsieve==2.6
-pillow==11.1.0
+soupsieve==2.9
+pillow==13.0.0
