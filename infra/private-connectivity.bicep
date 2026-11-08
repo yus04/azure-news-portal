@@ -24,6 +24,9 @@ param cosmosAccountName string
 @description('Resource group containing the existing Cosmos DB account.')
 param cosmosResourceGroupName string = resourceGroup().name
 
+@description('Resource group for the Cosmos Private Endpoint.')
+param cosmosPrivateEndpointResourceGroupName string = resourceGroup().name
+
 @description('Existing Azure Functions app name.')
 param functionAppName string
 
@@ -48,6 +51,24 @@ param cosmosPrivateEndpointName string = 'pe-${cosmosAccountName}-sql'
 @description('Private DNS VNet link name.')
 param privateDnsVnetLinkName string = 'link-${virtualNetworkName}'
 
+@description('Resource group containing the Cosmos private DNS zone.')
+param privateDnsZoneResourceGroupName string = resourceGroup().name
+
+@description('Cosmos DB for NoSQL private DNS zone name.')
+param privateDnsZoneName string = 'privatelink.documents.azure.com'
+
+@description('Use an existing private DNS zone instead of creating it.')
+param createPrivateDnsZone bool = true
+
+@description('Create the VNet link. Set false only when the named link already exists and should be left untouched.')
+param createPrivateDnsVnetLink bool = true
+
+@description('Create a Cosmos Private Endpoint. Set false to reuse the existing endpoint with cosmosPrivateEndpointName.')
+param createCosmosPrivateEndpoint bool = true
+
+@description('Create/update the endpoint DNS zone group. Set false if an existing zone group should be preserved.')
+param configurePrivateDnsZoneGroup bool = true
+
 @description('Existing article input Blob container.')
 param inputContainerName string = 'raw-articles'
 
@@ -64,7 +85,14 @@ module connectivity 'modules/private-connectivity.bicep' = {
     inputContainerName: inputContainerName
     cosmosAccountName: cosmosAccountName
     cosmosResourceGroupName: cosmosResourceGroupName
+    cosmosPrivateEndpointResourceGroupName: cosmosPrivateEndpointResourceGroupName
     cosmosPrivateEndpointName: cosmosPrivateEndpointName
+    createCosmosPrivateEndpoint: createCosmosPrivateEndpoint
+    configurePrivateDnsZoneGroup: configurePrivateDnsZoneGroup
+    privateDnsZoneResourceGroupName: privateDnsZoneResourceGroupName
+    privateDnsZoneName: privateDnsZoneName
+    createPrivateDnsZone: createPrivateDnsZone
+    createPrivateDnsVnetLink: createPrivateDnsVnetLink
     functionAppName: functionAppName
     functionAppResourceGroupName: functionAppResourceGroupName
     virtualNetworkName: virtualNetworkName
@@ -86,6 +114,11 @@ output feedFederatedSubject string = connectivity.outputs.feedFederatedSubject
 output storageAccountName string = connectivity.outputs.storageAccountName
 output inputContainerName string = connectivity.outputs.inputContainerName
 output cosmosPrivateEndpointId string = connectivity.outputs.cosmosPrivateEndpointId
+output cosmosPrivateEndpointName string = cosmosPrivateEndpointName
+output cosmosPrivateEndpointResourceGroupName string = cosmosPrivateEndpointResourceGroupName
 output cosmosPrivateDnsZoneId string = connectivity.outputs.cosmosPrivateDnsZoneId
+output cosmosPrivateDnsZoneName string = privateDnsZoneName
+output cosmosPrivateDnsZoneGroupId string = connectivity.outputs.cosmosPrivateDnsZoneGroupId
 output privateDnsVnetLinkId string = connectivity.outputs.privateDnsVnetLinkId
+output privateDnsVnetLinkName string = privateDnsVnetLinkName
 output functionIntegrationSubnetId string = connectivity.outputs.functionIntegrationSubnetId

@@ -185,10 +185,24 @@ Flex Consumption 統合用サブネットは専用、/27 以上、Functions と�
 Private Endpoint のネットワークポリシー要件を満たす必要があります。
 
 既存 Function の `Microsoft.Web/sites/networkConfig` のみを更新し、Function App の app settings
-全置換や他のサイト設定の再宣言はしません。Cosmos Private Endpoint と DNS を用意しただけでは
-VNet 非接続の既存 Container Apps Portal に到達経路はできません。Portal のネットワーク構成を
-別途設計するまで Cosmos の Public Network Access は維持してください。既存 Container Apps
-Environment のネットワーク方式は作成後に変更できません。
+全置換や他のサイト設定の再宣言はしません。`subnetResourceId` に指定するFlex統合サブネットは
+Functions 専用で、Private Endpoint サブネットと分けます。既存のFunctions VNet統合がある場合、
+入力したサブネットがその接続先を置換するため、現行の接続先を確認し、維持する場合は同じIDを指定してください。
+このリソースはサブネットのUDRやNSGを変更しません。
+
+既存の `privatelink.documents.azure.com` zone、Cosmos Private Endpoint、VNet link、または
+zone group がある環境では、各リソースを確認して対応する `createPrivateDnsZone`、
+`createCosmosPrivateEndpoint`、`createPrivateDnsVnetLink`、`configurePrivateDnsZoneGroup` を
+false にし、既存リソースを再宣言しない選択ができます。既存ゾーンは
+`privateDnsZoneResourceGroupName` で参照します。既存 endpoint を再利用する場合は同一Cosmos
+アカウント/PE subnetへの接続が既に正しいことを確認し、endpoint と zone group の
+what-if 変更が意図どおりのときだけ適用してください。Zone group の作成/更新はその endpoint
+に紐づく zone group の構成を書き換えるため、既存zone groupを保つ場合は作成を無効化します。
+
+Cosmos Private Endpoint と DNS を用意しただけではVNet非接続の既存Container Apps Portalに
+到達経路はできません。既存Cosmos DBのPublic Network Accessは現在値を維持してください。
+現状がDisabledなら、この変更のみではPortalはCosmosに到達できません。既存Container Apps
+Environmentのネットワーク方式は作成後に変更できません。
 
 ---
 
@@ -478,7 +492,7 @@ Application Insights のサンプリング (20 items/sec)、Portal のスケー�
   → 集計ドキュメントの事前計算、または Azure AI Search のファセット機能へ移行。
 - Functions ホストのストレージ権限がアカウントスコープになる点 (4.1 参照)。
 - Cosmos DB Private Endpoint と Functions VNet 統合は `infra/private-connectivity.bicep` で追加できます。
-  Portal の VNet 接続と Storage Private Endpoint は対象外のため、Portal のプライベート経路が用意できるまでは
-  Cosmos DB の Public Network Access を維持します。
+  Portal の VNet 接続と Storage Private Endpoint は対象外です。Cosmos DB の Public Network Access は
+  現在値を維持し、この変更で有効化/無効化しません。
 - 画像の代替テキストは元サイトの `alt` 属性、無い場合は日本語タイトルを使用します。
   モデルによる画像内容の記述は行っていません。

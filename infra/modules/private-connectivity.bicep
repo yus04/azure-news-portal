@@ -11,6 +11,13 @@ param inputContainerName string = 'raw-articles'
 param cosmosAccountName string
 param cosmosResourceGroupName string = resourceGroup().name
 param cosmosPrivateEndpointName string
+param cosmosPrivateEndpointResourceGroupName string = resourceGroup().name
+param createCosmosPrivateEndpoint bool = true
+param configurePrivateDnsZoneGroup bool = true
+param privateDnsZoneName string = 'privatelink.documents.azure.com'
+param privateDnsZoneResourceGroupName string = resourceGroup().name
+param createPrivateDnsZone bool = true
+param createPrivateDnsVnetLink bool = true
 
 param functionAppName string
 param functionAppResourceGroupName string = resourceGroup().name
@@ -19,12 +26,11 @@ param virtualNetworkName string = ''
 param virtualNetworkResourceGroupName string = resourceGroup().name
 param privateEndpointSubnetId string = ''
 param functionIntegrationSubnetId string = ''
-param privateDnsVnetLinkName string = ''
+param privateDnsVnetLinkName string
 
 var githubIssuer = 'https://token.actions.githubusercontent.com'
 var githubAudience = 'api://AzureADTokenExchange'
 var blobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
-var privateDnsZoneName = 'privatelink.documents.azure.com'
 
 resource ingestionIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: ingestionIdentityName
@@ -104,57 +110,41 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' existing 
   scope: resourceGroup(virtualNetworkResourceGroupName)
 }
 
-resource cosmosPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = if (enablePrivateNetworking) {
-  name: cosmosPrivateEndpointName
-  location: location
-  properties: {
-    subnet: {
-      id: privateEndpointSubnetId
-    }
-    privateLinkServiceConnections: [
-      {
-        name: '${cosmosPrivateEndpointName}-connection'
-        properties: {
-          privateLinkServiceId: cosmosAccount.id
-          groupIds: [
-            'Sql'
-          ]
-        }
-      }
-    ]
+module cosmosPrivateEndpoint 'cosmos-private-endpoint.bicep' = if (enablePrivateNetworking) {
+  name: 'cosmos-private-endpoint'
+  scope: resourceGroup(cosmosPrivateEndpointResourceGroupName)
+  params: {
+    privateEndpointName: cosmosPrivateEndpointName
+    location: location
+    cosmosAccountId: cosmosAccount.id
+    privateEndpointSubnetId: privateEndpointSubnetId
+    createPrivateEndpoint: createCosmosPrivateEndpoint
   }
 }
 
-resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
-  name: privateDnsZoneName
-  location: 'global'
-}
-
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = if (enablePrivateNetworking) {
-  parent: cosmosPrivateEndpoint
-  name: 'default'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'cosmos-sql'
-        properties: {
-          privateDnsZoneId: privateDnsZone.id
-        }
-      }
-    ]
+module privateDns 'private-dns-zone-link.bicep' = if (enablePrivateNetworking) {
+  name: 'private-dns-zone-link'
+  scope: resourceGroup(privateDnsZoneResourceGroupName)
+  params: {
+    privateDnsZoneName: privateDnsZoneName
+    virtualNetworkId: virtualNetwork.id
+    privateDnsVnetLinkName: privateDnsVnetLinkName
+    createPrivateDnsZone: createPrivateDnsZone
+    createPrivateDnsVnetLink: createPrivateDnsVnetLink
   }
 }
 
-resource privateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
-  parent: privateDnsZone
-  name: privateDnsVnetLinkName
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
+module privateDnsZoneGroup 'private-endpoint-dns-zone-group.bicep' = if (enablePrivateNetworking) {
+  name: 'private-endpoint-dns-zone-group'
+  scope: resourceGroup(cosmosPrivateEndpointResourceGroupName)
+  params: {
+    privateEndpointName: cosmosPrivateEndpointName
+    privateDnsZoneId: privateDns!.outputs.privateDnsZoneId
+    configurePrivateDnsZoneGroup: configurePrivateDnsZoneGroup
   }
+  dependsOn: [
+    cosmosPrivateEndpoint
+  ]
 }
 
 module functionVnetIntegration 'function-vnet-integration.bicep' = if (enablePrivateNetworking) {
@@ -178,7 +168,8 @@ output feedIdentityPrincipalId string = feedIdentity.properties.principalId
 output feedFederatedSubject string = feedFederation.properties.subject
 output storageAccountName string = storageAccount.name
 output inputContainerName string = inputContainer.name
-output cosmosPrivateEndpointId string = enablePrivateNetworking ? cosmosPrivateEndpoint.id : ''
-output cosmosPrivateDnsZoneId string = enablePrivateNetworking ? privateDnsZone.id : ''
-output privateDnsVnetLinkId string = enablePrivateNetworking ? privateDnsVnetLink.id : ''
+output cosmosPrivateEndpointId string = enablePrivateNetworking ? cosmosPrivateEndpoint!.outputs.privateEndpointId : ''
+output cosmosPrivateDnsZoneId string = enablePrivateNetworking ? privateDns!.outputs.privateDnsZoneId : ''
+output privateDnsVnetLinkId string = enablePrivateNetworking ? privateDns!.outputs.privateDnsVnetLinkId : ''
+output cosmosPrivateDnsZoneGroupId string = enablePrivateNetworking ? privateDnsZoneGroup!.outputs.privateDnsZoneGroupId : ''
 output functionIntegrationSubnetId string = enablePrivateNetworking ? functionIntegrationSubnetId : ''
