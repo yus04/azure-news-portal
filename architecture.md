@@ -60,7 +60,7 @@ flowchart LR
     AI --> LAW
 ```
 
-すべてのサービス間認証は Managed Identity と Microsoft Entra ID で行い、キーや接続文字列は使用しません。
+Azure サービス間認証は Managed Identity と Microsoft Entra ID で行います。GitHub Actions からの記事入力も OIDC フェデレーションを使い、ストレージキーや接続文字列は使用しません。
 
 ---
 
@@ -154,11 +154,41 @@ Event Grid Event Subscription は宛先の Function が存在しないと作成�
 
 Portal は通常の閲覧処理で書き込みを行わないため、書き込み権限を一切持ちません。
 
-### 4.3 Event Grid System Topic (システム割り当て ID)
+### 4.3 GitHub Actions 取り込み用 ID
+
+`infra/modules/private-connectivity.bicep` はリポジトリごとに独立したユーザー割り当て ID と Federated Identity Credential を作ります。片方のリポジトリの資格情報が漏えいしても、もう片方の ID を利用できません。両 ID の RBAC スコープは `raw-articles` コンテナーのみで、ロールは Storage Blob Data Contributor です。
+
+| GitHub リポジトリ | ブランチ固定 OIDC subject |
+|------------------|--------------------------|
+| `yus04/azure-news-ingest` | `repo:yus04/azure-news-ingest:ref:refs/heads/main` |
+| `yus04/azurenewsfeed` | `repo:yus04/azurenewsfeed:ref:refs/heads/master` |
+
+Issuer は `https://token.actions.githubusercontent.com`、audience は `api://AzureADTokenExchange` です。Actions は `azure/login@v2` を利用し、各リポジトリの `AZURE_CLIENT_ID` には対応する ID の client ID を設定します。`AZURE_TENANT_ID` と `AZURE_SUBSCRIPTION_ID` は両リポジトリの Actions secrets、`AZURE_STORAGE_ACCOUNT_NAME` は Actions variable とします。
+
+### 4.4 Event Grid System Topic (システム割り当て ID)
 
 | ロール | スコープ | 目的 |
 |-------|---------|------|
 | Storage Blob Data Contributor | `eventgrid-deadletter` コンテナー | 共有キーを無効化しているためデッドレター書き込みに ID を使用 |
+
+### 4.5 ネットワーク接続
+
+`infra/modules/private-connectivity.bicep` が接続リソースを宣言し、`infra/private-connectivity.bicep`
+が既存環境向けの限定デプロイ入口です。`infra/main.bicep` も同じモジュールを使用し、
+`enablePrivateNetworking` を指定した新規構成に対応します。モジュールは既存 Cosmos / Function /
+VNet / Storage を参照し、VNet やサブネットの作成・変更、Cosmos の Public Network Access の変更はしません。
+
+Private Link は Cosmos DB for NoSQL の group ID `Sql`、Private DNS zone
+`privatelink.documents.azure.com`、対象 VNet への DNS link を設定します。
+Flex Consumption 統合用サブネットは専用、/27 以上、Functions と同一リージョン、
+`Microsoft.App/environments` 委任としてください。Private Endpoint サブネットは別に用意し、
+Private Endpoint のネットワークポリシー要件を満たす必要があります。
+
+既存 Function の `Microsoft.Web/sites/networkConfig` のみを更新し、Function App の app settings
+全置換や他のサイト設定の再宣言はしません。Cosmos Private Endpoint と DNS を用意しただけでは
+VNet 非接続の既存 Container Apps Portal に到達経路はできません。Portal のネットワーク構成を
+別途設計するまで Cosmos の Public Network Access は維持してください。既存 Container Apps
+Environment のネットワーク方式は作成後に変更できません。
 
 ---
 
@@ -178,7 +208,8 @@ Function が `article-images` / `article-content` / `failed-articles` へ書き�
 Functions のデプロイパッケージ (`function-releases`) も同様に対象外です。
 
 セキュリティ設定: 共有キー認証を無効化 (`allowSharedKeyAccess: false`)、パブリック BLOB アクセス禁止、
-TLS 1.2 以上、HTTPS のみ。
+TLS 1.2 以上、HTTPS のみ。Storage のネットワーク制御はキー認証と別設定です。本変更では
+Storage Private Endpoint を設定せず、GitHub-hosted runner からの接続を維持します。
 
 ---
 
@@ -446,6 +477,8 @@ Application Insights のサンプリング (20 items/sec)、Portal のスケー�
 - ファセットは `GROUP BY` のクロスパーティションクエリで、記事数が増えると RU コストが上がります。
   → 集計ドキュメントの事前計算、または Azure AI Search のファセット機能へ移行。
 - Functions ホストのストレージ権限がアカウントスコープになる点 (4.1 参照)。
-- ネットワークはパブリック構成です。Private Endpoint / VNet 統合は今回の対象外です。
+- Cosmos DB Private Endpoint と Functions VNet 統合は `infra/private-connectivity.bicep` で追加できます。
+  Portal の VNet 接続と Storage Private Endpoint は対象外のため、Portal のプライベート経路が用意できるまでは
+  Cosmos DB の Public Network Access を維持します。
 - 画像の代替テキストは元サイトの `alt` 属性、無い場合は日本語タイトルを使用します。
   モデルによる画像内容の記述は行っていません。

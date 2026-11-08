@@ -48,8 +48,8 @@ Azure Container Apps 上の Web ポータルで配信します。
 
 - **完全サーバーレス**: Functions は Flex Consumption、Cosmos DB は Serverless、
   Container Apps は Consumption workload profile でスケールゼロ
-- **サービス間はキーレス**: Azure サービス間認証は Managed Identity + Microsoft Entra ID。
-  外部の GitHub Actions から記事を投入する Storage 接続文字列は別途管理します
+- **キーレス認証**: Azure サービス間認証は Managed Identity + Microsoft Entra ID。
+  GitHub Actions からの記事投入も OIDC フェデレーションで認証し、Storage キーは使用しません
 - **完全 IaC**: すべての Azure リソースを Bicep で構築。Azure Portal での手動作成は不要
 - **冪等**: 同じ記事を何度処理しても重複レコードは作られません
 - **モデル差し替え可能**: モデル名・デプロイ名・API バージョン・API スタイルをすべて設定で切り替え
@@ -90,7 +90,7 @@ flowchart LR
 |---------|------|---------|
 | Log Analytics Workspace | 監視 | 保持 30 日 |
 | Application Insights | 監視 | ワークスペースベース |
-| Storage Account | StorageV2 | 共有キー有効、TLS 1.2+、6 コンテナー |
+| Storage Account | StorageV2 | 共有キー無効、TLS 1.2+、6 コンテナー |
 | Event Grid System Topic + Subscription | イベント | BlobCreated / 入力コンテナー限定 / デッドレター |
 | Azure Functions Plan + App | FC1 (Flex Consumption) | Linux / Python 3.11 |
 | Microsoft Foundry (AI Services) + Project | AI | ローカル認証無効、コンテンツフィルター有効 |
@@ -98,8 +98,10 @@ flowchart LR
 | Cosmos DB for NoSQL | データベース | Serverless、ローカル認証無効、2 コンテナー |
 | Container Registry | コンテナー | Basic、管理者ユーザー無効 |
 | Container Apps Environment + App | コンテナー | Consumption、スケールゼロ、パブリック HTTPS |
-| ユーザー割り当てマネージド ID × 2 | ID | Function 用 / Portal 用 |
+| ユーザー割り当てマネージド ID | ID | Function / Portal / GitHub Actions 用途別 |
 | ロール割り当て | RBAC | 最小権限 (詳細は architecture.md) |
+| Cosmos DB Private Endpoint / Private DNS | ネットワーク | NoSQL (Sql) 接続用。既存 VNet を利用 |
+| Functions VNet 統合 | ネットワーク | Flex Consumption のアウトバウンド接続 |
 
 設計の詳細は **[architecture.md](architecture.md)**、未確定事項は
 **[docs/assumptions.md](docs/assumptions.md)** を参照してください。
@@ -113,6 +115,7 @@ azure-news-portal/
 ├── infra/                        # Infrastructure as Code (Bicep)
 │   ├── main.bicep                # エントリーポイント
 │   ├── main.bicepparam           # 開発環境用パラメーター
+│   ├── private-connectivity.bicep # 既存環境に接続設定を追加するエントリーポイント
 │   └── modules/
 │       ├── monitoring.bicep      # Log Analytics / Application Insights
 │       ├── storage.bicep         # Storage Account + コンテナー
@@ -122,7 +125,8 @@ azure-news-portal/
 │       ├── cosmos-db.bicep       # Cosmos DB Serverless
 │       ├── container-registry.bicep
 │       ├── container-apps.bicep  # 環境 + Azure News Portal
-│       └── role-assignments.bicep
+│       ├── role-assignments.bicep
+│       └── private-connectivity.bicep # OIDC ID / Cosmos Private Link / Functions VNet
 ├── functions/                    # 記事処理パイプライン
 │   ├── function_app.py           # Event Grid Trigger (Python v2 model)
 │   ├── host.json
@@ -748,7 +752,12 @@ az cognitiveservices account purge --name <foundry-account-name> \
 - **ファセット**: クロスパーティションの `GROUP BY` クエリのため、記事数増加に伴い RU コストが増えます。
 - **Functions のストレージ権限**: Functions ホストの要件により、Blob 権限がアカウントスコープになります
   (詳細は [docs/assumptions.md](docs/assumptions.md) 4 章)。
-- **ネットワーク**: パブリック構成です。Private Endpoint / VNet 統合 / NAT Gateway は対象外です。
+- **既存環境の接続更新**: `infra/private-connectivity.bicep` は既存 Cosmos DB への Private Endpoint / Private DNS、Functions のアウトバウンド VNet 統合、GitHub Actions 用 OIDC ID とコンテナー RBAC を追加する専用エントリーポイントです。既存 VNet、Private Endpoint 専用サブネット、Functions 統合用サブネットの ID などを入力します。既存環境の更新に `infra/main.bicep` を再適用しないでください。全リソース設定を宣言しており、Portal イメージなどの意図しない変更を起こす可能性があります。
+- **既存接続テンプレートの入力**: `location`、`storageAccountName`、`cosmosAccountName`、`functionAppName`、`virtualNetworkName`、`privateEndpointSubnetId`、`functionIntegrationSubnetId` が必須です。Cosmos / Function / VNet が別リソースグループなら `cosmosResourceGroupName`、`functionAppResourceGroupName`、`virtualNetworkResourceGroupName` も指定します。`privateEndpointSubnetId` と `functionIntegrationSubnetId` は既存サブネットの完全なリソース ID です。既存 Storage Account の共有キー無効化は `infra/modules/storage.bicep` の `allowSharedKeyAccess: false` が新規構成に適用されます。限定テンプレートは Storage アカウント全体を再宣言しないため、既存アカウントの設定は別途反映します。
+- **OIDC 出力**: デプロイ出力 `ingestionIdentityClientId` を `yus04/azure-news-ingest` の `AZURE_CLIENT_ID`、`feedIdentityClientId` を `yus04/azurenewsfeed` の `AZURE_CLIENT_ID` に設定します。両方で `AZURE_TENANT_ID` と `AZURE_SUBSCRIPTION_ID` を Actions secrets、`AZURE_STORAGE_ACCOUNT_NAME` を Actions variable とし、`azure/login@v2` で認証します。Federated subject はそれぞれ `ingestionFederatedSubject` と `feedFederatedSubject` 出力に含まれます。
+- **Functions VNet 統合サブネット**: Flex Consumption 用に専用サブネットを用意します。Microsoft Learn の現行要件に従い、Functions と同一リージョン、/27 以上、`Microsoft.App/environments` 委任が必要です。Private Endpoint 用サブネットとは分離してください。
+- **Portal の Cosmos 接続**: 現行 Azure Container Apps Environment は VNet 未接続です。Cosmos Private Endpoint と DNS を追加しても Portal からのプライベート経路は設定されません。Portal の接続経路を別途設計するまでは Cosmos DB の Public Network Access を無効にしないでください。既存 Environment のネットワーク方式は作成後に変更できません。
+- **Storage のネットワーク**: 共有キー認証無効化と Storage の Public Network Access は別設定です。本変更では Storage を Private Endpoint 化せず、GitHub-hosted `ubuntu-latest` runner からアクセスできる前提を維持します。
 - **ユーザー認証**: Portal に認証はありません (将来 Entra ID 認証を追加できる構造)。
 - **画像**: 元サイトの `alt` 属性を優先し、モデルによる画像内容の説明は生成しません。
 - **入力スキーマ**: 実際の入力 JSON を確認できていないため、複数の項目名を許容する

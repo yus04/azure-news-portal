@@ -9,7 +9,7 @@ param logAnalyticsWorkspaceId string
 param containerNames array
 
 @description('共有キー (アカウントキー) 認証を有効化するかどうか。')
-param allowSharedKeyAccess bool = true
+param allowSharedKeyAccess bool = false
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName

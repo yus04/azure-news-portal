@@ -68,6 +68,21 @@ param functionsInstanceMemoryMB int = 2048
 @maxValue(1000)
 param functionsMaximumInstanceCount int = 40
 
+@description('既存 VNet / サブネットが準備できている場合に Cosmos Private Link と Functions VNet 統合を有効にします。既存環境の更新には infra/private-connectivity.bicep を使用してください。')
+param enablePrivateNetworking bool = false
+
+@description('Functions / Cosmos Private Endpoint が接続する既存 VNet 名。')
+param privateConnectivityVnetName string = ''
+
+@description('既存 VNet のリソースグループ名。')
+param privateConnectivityVnetResourceGroupName string = resourceGroup().name
+
+@description('既存 Private Endpoint 専用サブネットのリソース ID。')
+param cosmosPrivateEndpointSubnetId string = ''
+
+@description('Microsoft.App/environments に委任した Functions Flex 統合サブネットのリソース ID。')
+param functionIntegrationSubnetId string = ''
+
 @description('Event Grid Trigger を持つ Function 名。Event Grid Subscription の宛先に使用します。')
 param eventGridFunctionName string = 'ProcessArticleBlob'
 
@@ -195,6 +210,8 @@ var names = {
   functionIdentity: 'id-func-${baseName}-${resourceToken}'
   portalIdentity: 'id-portal-${baseName}-${resourceToken}'
   eventGridDeadLetterIdentity: 'id-egdl-${baseName}-${resourceToken}'
+  ingestionIdentity: 'id-gh-ingest-${baseName}'
+  feedIdentity: 'id-gh-feed-${baseName}'
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +266,32 @@ module storage 'modules/storage.bicep' = {
       failedContainerName
     ]
   }
+}
+
+module privateConnectivity 'modules/private-connectivity.bicep' = {
+  name: 'private-connectivity'
+  params: {
+    location: location
+    enablePrivateNetworking: enablePrivateNetworking
+    ingestionIdentityName: names.ingestionIdentity
+    feedIdentityName: names.feedIdentity
+    storageAccountName: storage.outputs.storageAccountName
+    inputContainerName: inputContainerName
+    cosmosAccountName: names.cosmos
+    cosmosResourceGroupName: resourceGroup().name
+    cosmosPrivateEndpointName: 'pe-${names.cosmos}-sql'
+    functionAppName: names.functionApp
+    functionAppResourceGroupName: resourceGroup().name
+    virtualNetworkName: privateConnectivityVnetName
+    virtualNetworkResourceGroupName: privateConnectivityVnetResourceGroupName
+    privateEndpointSubnetId: cosmosPrivateEndpointSubnetId
+    functionIntegrationSubnetId: functionIntegrationSubnetId
+    privateDnsVnetLinkName: 'link-${privateConnectivityVnetName}'
+  }
+  dependsOn: [
+    cosmos
+    functions
+  ]
 }
 
 module foundry 'modules/foundry.bicep' = {
@@ -437,5 +480,12 @@ output portalContainerAppName string = containerApps.outputs.containerAppName
 output portalUrl string = containerApps.outputs.fqdn == '' ? '' : 'https://${containerApps.outputs.fqdn}'
 output functionIdentityClientId string = functionIdentity.properties.clientId
 output portalIdentityClientId string = portalIdentity.properties.clientId
+output ingestionIdentityClientId string = privateConnectivity.outputs.ingestionIdentityClientId
+output ingestionFederatedSubject string = privateConnectivity.outputs.ingestionFederatedSubject
+output feedIdentityClientId string = privateConnectivity.outputs.feedIdentityClientId
+output feedFederatedSubject string = privateConnectivity.outputs.feedFederatedSubject
+output cosmosPrivateEndpointId string = privateConnectivity.outputs.cosmosPrivateEndpointId
+output cosmosPrivateDnsZoneId string = privateConnectivity.outputs.cosmosPrivateDnsZoneId
+output functionIntegrationSubnetId string = privateConnectivity.outputs.functionIntegrationSubnetId
 output applicationInsightsName string = monitoring.outputs.appInsightsName
 output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspaceName
